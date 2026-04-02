@@ -144,14 +144,14 @@ class PercentileAnalyzer:
         return results
 
     def get_pe_history(self, symbol: str, months: int = 120) -> list[dict]:
-        """获取 PE 历史时间序列
+        """获取 PE 历史时间序列（含滚动百分位）
 
         Args:
             symbol: 标的代码
             months: 返回最近 N 个月
 
         Returns:
-            [{date, pe_ttm, pe_static, pe_median, index_value}, ...]
+            [{date, pe_ttm, pe_static, pe_median, index_value, percentile}, ...]
         """
         rows = fetchall(
             "SELECT date, pe_ttm, pe_static, pe_median, index_value "
@@ -173,4 +173,19 @@ class PercentileAnalyzer:
             for r in rows
         ]
         data.reverse()  # 按日期升序
+
+        # 计算滚动百分位: 每个点在其前 N 年窗口中的排名
+        pe_values = [d["pe_ttm"] for d in data if d["pe_ttm"] is not None]
+        for i, d in enumerate(data):
+            if d["pe_ttm"] is None:
+                d["percentile"] = None
+                continue
+            # 用该点之前的所有数据作为窗口
+            window = pe_values[: i + 1]
+            if len(window) < 20:
+                d["percentile"] = None
+                continue
+            rank = sum(1 for v in window if v <= d["pe_ttm"])
+            d["percentile"] = round(rank / len(window) * 100, 1)
+
         return data

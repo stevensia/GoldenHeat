@@ -11,10 +11,10 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   fetchDashboard,
-  fetchValuationHistory,
   fetchKlineHistory,
   fetchMacroDetails,
   fetchClockSummary,
+  fetchV1PEHistory,
 } from '../api/client'
 import type { KlineHistoryPoint, MacroDetail, ValuationHistoryPoint } from '../api/types'
 import type { MarketTab } from '../components/Navbar'
@@ -83,14 +83,24 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
   })
 
-  // 新 API：估值历史（Track A，取第一个标的作为综合参考）
-  const firstSymbol = data?.market_temperature?.details?.[0]?.symbol
-  const { data: valuationHistory } = useQuery({
-    queryKey: ['valuation-history', firstSymbol],
-    queryFn: () => fetchValuationHistory(firstSymbol!, 120),
+  // 估值历史（使用 v1 PE 历史 API，含滚动百分位）
+  const firstSymbol = data?.market_temperature?.details?.[0]?.symbol ?? '000300.SS'
+  const { data: peHistoryResult } = useQuery({
+    queryKey: ['pe-history-dashboard', firstSymbol],
+    queryFn: () => fetchV1PEHistory(firstSymbol, 120),
     enabled: !!firstSymbol,
     staleTime: 30 * 60 * 1000,
   })
+  // 转换为 PercentileBar 需要的格式
+  const valuationHistory: ValuationHistoryPoint[] | null = peHistoryResult?.data
+    ? peHistoryResult.data
+        .filter((p) => p.pe_ttm != null && p.percentile != null)
+        .map((p) => ({
+          date: p.date,
+          pe: p.pe_ttm!,
+          percentile: p.percentile as number,
+        }))
+    : null
 
   // 新 API：K 线历史 — 为每个牛熊标的批量拉取
   const bullBearSymbols = data?.bull_bear?.map((b) => b.symbol) ?? []

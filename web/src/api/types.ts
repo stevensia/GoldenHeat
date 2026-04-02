@@ -180,6 +180,7 @@ export interface PEHistoryPoint {
   pe_static: number | null
   pe_median: number | null
   index_value: number | null
+  percentile?: number | null
 }
 
 // === Task E: 定投 DCA ===

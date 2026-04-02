@@ -1,4 +1,10 @@
-/* Dashboard 主页面 — 组装所有组件 */
+/* Dashboard 主页面 — 组装所有组件
+ *
+ * 优化点:
+ * - 三大核心区域增加 section 标题 + 左侧装饰条
+ * - 页面整体 padding 对称
+ * - 各 section 间用视觉分隔线+标题风格统一
+ */
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -29,6 +35,40 @@ function getMarket(symbol: string): MarketTab {
   if (symbol.endsWith('.HK')) return 'hk'
   if (symbol.includes('USD') || symbol.includes('BTC') || symbol.includes('ETH')) return 'crypto'
   return 'us'
+}
+
+/* ── Section 标题组件 ── */
+function SectionHeader({ icon, title, subtitle, accentColor = '#00d4ff' }: {
+  icon: string
+  title: string
+  subtitle?: string
+  accentColor?: string
+}) {
+  return (
+    <div className="flex items-center gap-3 mb-5">
+      <div className="w-1 h-8 rounded-full" style={{ background: `linear-gradient(to bottom, ${accentColor}, ${accentColor}44)` }} />
+      <div>
+        <h2 className="text-base sm:text-lg font-bold text-[#e0e0e0] tracking-tight flex items-center gap-2">
+          <span>{icon}</span>
+          {title}
+        </h2>
+        {subtitle && <p className="text-[10px] text-[#555] mt-0.5">{subtitle}</p>}
+      </div>
+    </div>
+  )
+}
+
+/* ── Section 容器 ── */
+function SectionBox({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <section className={`relative rounded-2xl p-5 sm:p-6 ${className}`}
+      style={{
+        background: 'rgba(17, 17, 34, 0.3)',
+        border: '1px solid rgba(255,255,255,0.04)',
+      }}>
+      {children}
+    </section>
+  )
 }
 
 export default function Dashboard() {
@@ -73,24 +113,27 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#0a0a14]">
       <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <main className="max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-10 py-6 sm:py-8">
 
-        {/* 子标题栏: 更新时间 + 刷新 */}
-        <div className="flex items-center justify-between mb-6 sm:mb-8">
+        {/* 页面头 — 市场标题 + 更新时间 */}
+        <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#e0e0e0] tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#e0e0e0] tracking-tight">
               {activeTab === 'all' ? '市场总览' :
                 activeTab === 'us' ? '🇺🇸 美股市场' :
                 activeTab === 'cn' ? '🇨🇳 A股市场' :
                 activeTab === 'hk' ? '🇭🇰 港股市场' :
                 '₿ 加密市场'}
-            </h2>
-            <p className="text-xs text-[#555] mt-1">
-              AI 中长周期投资决策系统 · 月线级别操作
+            </h1>
+            <p className="text-xs text-[#555] mt-1.5">
+              AI 中长周期投资决策系统 · 只做月线级别操作
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-[#555] hidden sm:block">更新于 {updatedAt}</span>
+            <div className="text-right hidden sm:block">
+              <div className="text-[10px] text-[#444]">数据更新</div>
+              <div className="text-xs text-[#666]">{updatedAt}</div>
+            </div>
             <button
               onClick={() => refetch()}
               disabled={isFetching}
@@ -112,16 +155,23 @@ export default function Dashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  刷新数据
+                  刷新
                 </span>
               )}
             </button>
           </div>
         </div>
 
-        <div className="space-y-8 sm:space-y-10">
-          {/* Row 1: 三大核心卡片 */}
-          <section>
+        <div className="space-y-6">
+
+          {/* ═══ Section 1: 宏观研判 ═══ */}
+          <SectionBox>
+            <SectionHeader
+              icon="🧭"
+              title="宏观研判"
+              subtitle="美林时钟 · 市场温度 · 资产配置"
+              accentColor="#00d4ff"
+            />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <MerillClock data={data.merill_clock} />
               {data.market_temperature.average && (
@@ -129,57 +179,77 @@ export default function Dashboard() {
               )}
               <DeviationBar data={data.merill_clock} />
             </div>
-          </section>
+          </SectionBox>
 
-          {/* Row 1.5: 市场温度详情（按市场过滤时显示） */}
+          {/* ═══ Section 1.5: 各标的温度 ═══ */}
           {filteredTemp.length > 0 && (
-            <section>
-              <h3 className="text-sm font-medium text-[#888] mb-4 flex items-center gap-2">
-                <span className="w-1 h-4 rounded-full" style={{ background: 'linear-gradient(to bottom, #3b82f6, #ef4444)' }} />
-                各标的温度
-              </h3>
+            <SectionBox>
+              <SectionHeader
+                icon="🌡️"
+                title="标的温度"
+                subtitle="各关注标的的多维温度评估"
+                accentColor="#eab308"
+              />
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {filteredTemp.map(t => (
                   <TemperatureCard key={t.symbol} data={t} />
                 ))}
               </div>
-            </section>
+            </SectionBox>
           )}
 
-          {/* Row 2: 月线信号热力表 */}
+          {/* ═══ Section 2: 月线信号 ═══ */}
           {filteredSignals.length > 0 && (
-            <section>
+            <SectionBox>
+              <SectionHeader
+                icon="📊"
+                title="月线信号"
+                subtitle="均线系统 · 回调位置 · 量能确认 · 综合评分"
+                accentColor="#22c55e"
+              />
               <SignalTable data={filteredSignals} />
-            </section>
+            </SectionBox>
           )}
 
-          {/* Row 3: 牛熊分割线 */}
+          {/* ═══ Section 3: 牛熊分割线 ═══ */}
           {filteredBullBear.length > 0 && (
-            <section className="border-t border-[#1e1e3a] pt-8">
-              <h2 className="text-xl font-bold text-[#e0e0e0] mb-6 tracking-tight flex items-center gap-2">
-                <span className="w-1.5 h-6 rounded-full" style={{ background: 'linear-gradient(to bottom, #22c55e, #ef4444)' }} />
-                牛熊分割线
-              </h2>
+            <SectionBox>
+              <SectionHeader
+                icon="📈"
+                title="牛熊分割线"
+                subtitle="年线 · 两年线 · 大级别仓位判断"
+                accentColor="#7c3aed"
+              />
               <BullBearChart data={filteredBullBear} />
-            </section>
+            </SectionBox>
           )}
 
           {/* 空状态 */}
           {filteredSignals.length === 0 && filteredBullBear.length === 0 && activeTab !== 'all' && (
-            <div className="text-center py-20">
-              <div className="text-4xl mb-3">📭</div>
-              <p className="text-[#888]">该市场暂无关注标的</p>
-              <p className="text-xs text-[#555] mt-1">可在后台配置 watchlist 添加</p>
-            </div>
+            <SectionBox>
+              <div className="text-center py-16">
+                <div className="text-4xl mb-3">📭</div>
+                <p className="text-[#888]">该市场暂无关注标的</p>
+                <p className="text-xs text-[#555] mt-1">可在后台配置 watchlist 添加</p>
+              </div>
+            </SectionBox>
           )}
         </div>
 
         {/* Footer */}
-        <footer className="text-center text-xs text-[#444] py-8 mt-12 border-t border-[#1e1e3a]/50">
+        <footer className="text-center text-xs text-[#444] py-8 mt-10">
+          <div className="h-px mb-6 mx-auto max-w-[200px]"
+            style={{ background: 'linear-gradient(to right, transparent, #1e1e3a, transparent)' }} />
           <div className="flex items-center justify-center gap-2 text-[#555]">
-            <span>GoldenHeat</span>
-            <span>·</span>
-            <span>数据更新: {updatedAt}</span>
+            <span style={{
+              background: 'linear-gradient(90deg, #00d4ff, #7c3aed)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              fontWeight: 600,
+            }}>GoldenHeat</span>
+            <span className="text-[#333]">·</span>
+            <span>数据更新 {updatedAt}</span>
           </div>
           <div className="text-[#333] mt-2">仅供参考，不构成投资建议</div>
         </footer>
@@ -188,7 +258,7 @@ export default function Dashboard() {
   )
 }
 
-/* 温度小卡片 — 详情展示 */
+/* ── 温度小卡片 ── */
 function TemperatureCard({ data }: { data: import('../api/types').TemperatureData }) {
   const temp = Math.max(0, Math.min(100, data.temperature))
   const getColor = (t: number) => {
@@ -203,20 +273,19 @@ function TemperatureCard({ data }: { data: import('../api/types').TemperatureDat
   return (
     <div className="bg-[#111122] border border-[#1e1e3a] rounded-xl p-4 hover:-translate-y-0.5 transition-all duration-200">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-[#888]">{data.name}</span>
+        <span className="text-xs text-[#888] font-medium">{data.name}</span>
         <span className="text-xs">{data.emoji}</span>
       </div>
       <div className="text-2xl font-bold" style={{ color }}>{temp.toFixed(0)}°</div>
       {/* 迷你温度条 */}
-      <div className="h-1 rounded-full mt-2 overflow-hidden"
+      <div className="relative h-1 rounded-full mt-2 overflow-hidden"
         style={{ background: 'linear-gradient(to right, #3b82f6, #eab308, #ef4444)' }}>
-        <div className="h-full bg-transparent" style={{ width: `${temp}%` }} />
       </div>
-      <div className="relative h-1 -mt-1">
-        <div className="absolute top-[-3px] w-2 h-2 rounded-full border border-white/50"
+      <div className="relative h-0">
+        <div className="absolute -top-[5px] w-2 h-2 rounded-full border border-white/50 shadow-sm"
           style={{ left: `calc(${temp}% - 4px)`, background: color }} />
       </div>
-      <div className="text-[10px] text-[#666] mt-2">{data.level}</div>
+      <div className="text-[10px] text-[#666] mt-3">{data.level}</div>
     </div>
   )
 }

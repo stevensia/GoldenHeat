@@ -40,10 +40,8 @@ export default function SignalTable({ data }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   return (
-    <div className="bg-[#111122] border border-[#1e1e3a] rounded-2xl p-6 shadow-lg shadow-black/30">
-      <h3 className="text-sm font-medium text-[#888] mb-4 tracking-wide">月线信号热力表</h3>
-
-      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+    <div>
+      <div className="overflow-x-auto max-h-[500px] overflow-y-auto rounded-xl border border-[#1e1e3a]/60 bg-[#0c0c1a]">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-[#888] text-xs bg-[#0a0a18] sticky top-0 z-10">

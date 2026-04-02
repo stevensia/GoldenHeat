@@ -1,5 +1,20 @@
-import { useState } from 'react'
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { useState, type ReactNode } from 'react'
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { useQuery } from '@tanstack/react-query'
 import { fetchDashboard } from '../api/client'
 import type { BullBearData, SignalData, TemperatureData } from '../api/types'
@@ -21,6 +36,46 @@ const MARKET_MAP: Record<string, MarketTab> = {
   GOOGL: 'us',
 }
 
+const MARKET_TITLES: Record<MarketTab, { title: string; deck: string }> = {
+  all: {
+    title: 'GoldenHeat 市场总览',
+    deck: '把宏观周期、市场热度、资产配置、趋势结构和牛熊分界，压缩成一个适合中周期决策的首页。',
+  },
+  us: {
+    title: '美股市场总览',
+    deck: '聚焦美股风险偏好、结构强弱和配置节奏，优先呈现更适合做决策的图表而不是堆砌说明。',
+  },
+  cn: {
+    title: 'A股市场总览',
+    deck: '围绕 A 股周期位置、热度变化、趋势强弱和仓位建议，帮助快速判断当前处于什么阶段。',
+  },
+  hk: {
+    title: '港股市场总览',
+    deck: '把港股波动翻译成可读的热度、结构和配置语言，降低只凭直觉判断的噪声。',
+  },
+  crypto: {
+    title: '加密市场总览',
+    deck: '用图表方式呈现加密资产热度、趋势结构和仓位区间，避免情绪驱动决策。',
+  },
+}
+
+const PHASE_ORDER = [
+  { key: 'recovery', label: '复苏', note: '增长回升，优先股票', color: '#1f7a69' },
+  { key: 'overheat', label: '过热', note: '通胀抬头，商品占优', color: '#b45a3c' },
+  { key: 'stagflation', label: '滞胀', note: '增长承压，降低风险', color: '#d4a24c' },
+  { key: 'recession', label: '衰退', note: '防御阶段，债券受益', color: '#64748b' },
+] as const
+
+const ALLOCATION_COLORS = ['#b45a3c', '#1f7a69', '#d4a24c', '#6b7280', '#d9795f', '#6ea699']
+
+const tooltipStyle = {
+  border: '1px solid rgba(17,24,39,0.08)',
+  borderRadius: '16px',
+  background: 'rgba(255,255,255,0.96)',
+  color: '#17181c',
+  boxShadow: '0 16px 40px rgba(17,24,39,0.10)',
+}
+
 function getMarket(sym: string): MarketTab {
   if (MARKET_MAP[sym]) return MARKET_MAP[sym]
   if (sym.endsWith('.SS') || sym.endsWith('.SZ')) return 'cn'
@@ -29,39 +84,9 @@ function getMarket(sym: string): MarketTab {
   return 'us'
 }
 
-const MARKET_TITLES: Record<MarketTab, { title: string; deck: string }> = {
-  all: {
-    title: 'GoldenHeat Market Briefing',
-    deck: '把宏观周期、资产温度、月线信号和仓位建议压到同一张首页里，给中长周期投资判断一个清晰界面。',
-  },
-  us: {
-    title: 'US Market Briefing',
-    deck: '聚焦美股风险偏好、趋势强弱与中长期配置窗口，强调信号、估值与仓位同步阅读。',
-  },
-  cn: {
-    title: 'China Market Briefing',
-    deck: '聚焦 A 股周期位置、市场温度和关键标的节奏，强调大级别决策而非短线噪声。',
-  },
-  hk: {
-    title: 'Hong Kong Market Briefing',
-    deck: '观察港股核心标的估值修复、趋势质量与风险回撤，把波动重新翻译成配置语言。',
-  },
-  crypto: {
-    title: 'Crypto Market Briefing',
-    deck: '把加密市场的高波动转成可读的温度、趋势和仓位区间，避免只凭情绪做决策。',
-  },
-}
-
-const PHASE_ORDER = [
-  { key: 'recovery', label: '复苏', note: '增长回升，优先股票' },
-  { key: 'overheat', label: '过热', note: '通胀抬头，商品占优' },
-  { key: 'stagflation', label: '滞胀', note: '增长承压，降低风险' },
-  { key: 'recession', label: '衰退', note: '防御阶段，债券受益' },
-] as const
-
 export default function Dashboard() {
   const [tab, setTab] = useState<MarketTab>('all')
-  const { data, isLoading, error, dataUpdatedAt, refetch, isFetching } = useQuery({
+  const { data, isLoading, error, dataUpdatedAt, refetch } = useQuery({
     queryKey: ['dashboard'],
     queryFn: fetchDashboard,
     refetchInterval: 5 * 60 * 1000,
@@ -95,17 +120,21 @@ export default function Dashboard() {
       ? data.market_temperature.details
       : data.market_temperature.details.filter((item) => getMarket(item.symbol) === tab)
 
-  const bullCount = filteredBullBear.filter((item) => item.phase === 'bull' || item.phase === 'bull_early').length
-  const bearCount = filteredBullBear.filter((item) => item.phase === 'bear' || item.phase === 'bear_early').length
   const averageTemp = filteredTemps.length
     ? filteredTemps.reduce((sum, item) => sum + item.temperature, 0) / filteredTemps.length
     : 0
-
+  const bullCount = filteredBullBear.filter((item) => item.phase === 'bull' || item.phase === 'bull_early').length
+  const bearCount = filteredBullBear.filter((item) => item.phase === 'bear' || item.phase === 'bear_early').length
   const strongestSignal = [...filteredSignals].sort((a, b) => b.score - a.score)[0]
   const hottestAsset = [...filteredTemps].sort((a, b) => b.temperature - a.temperature)[0]
-  const coolestAsset = [...filteredTemps].sort((a, b) => a.temperature - b.temperature)[0]
   const updated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleString('zh-CN') : '-'
   const titlePack = MARKET_TITLES[tab]
+
+  const phaseChartData = PHASE_ORDER.map((phase) => ({
+    name: phase.label,
+    value: 25,
+    fill: data.merill_clock.phase === phase.key ? phase.color : 'rgba(23,24,28,0.10)',
+  }))
 
   const allocationChartData = Object.entries(data.merill_clock.allocation)
     .sort((a, b) => b[1] - a[1])
@@ -115,19 +144,7 @@ export default function Dashboard() {
       fill: ALLOCATION_COLORS[index % ALLOCATION_COLORS.length],
     }))
 
-  const signalChartData = [...filteredSignals]
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 6)
-    .reverse()
-    .map((item) => ({
-      name: item.name,
-      score: Number(item.score.toFixed(0)),
-      trend: Number(item.breakdown.trend_score.toFixed(0)),
-      pullback: Number(item.breakdown.pullback_score.toFixed(0)),
-      volume: Number(item.breakdown.volume_score.toFixed(0)),
-    }))
-
-  const tempChartData = [...filteredTemps]
+  const temperatureChartData = [...filteredTemps]
     .sort((a, b) => b.temperature - a.temperature)
     .slice(0, 8)
     .map((item) => ({
@@ -135,22 +152,47 @@ export default function Dashboard() {
       temperature: Number(item.temperature.toFixed(0)),
     }))
 
+  const bullBearMetricData = [...filteredBullBear]
+    .slice()
+    .sort((a, b) => a.price_vs_ma12_pct - b.price_vs_ma12_pct)
+    .map((item) => ({
+      name: item.name,
+      priceVsMa12: Number(item.price_vs_ma12_pct.toFixed(1)),
+      ma12VsMa24: Number(item.ma12_vs_ma24_pct.toFixed(1)),
+      phase: item.phase_label,
+    }))
+
+  const trendChartData = [...filteredSignals]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6)
+    .map((item) => {
+      const current = item.current_price || 1
+      return {
+        name: item.name,
+        现价: 100,
+        MA5: Number((((item.ma5 ?? current) / current) * 100).toFixed(1)),
+        MA10: Number((((item.ma10 ?? current) / current) * 100).toFixed(1)),
+        MA20: Number((((item.ma20 ?? current) / current) * 100).toFixed(1)),
+        score: Number(item.score.toFixed(0)),
+      }
+    })
+
   return (
     <div className="page-shell">
       <Navbar activeTab={tab} onTabChange={setTab} />
 
       <main className="mx-auto max-w-[1320px] px-4 pb-16 pt-6 sm:px-6 lg:px-8">
-        <section className="grid gap-5 lg:grid-cols-[1.4fr_0.9fr]">
+        <section className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
           <div className="paper-card paper-hero overflow-hidden">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(186,94,61,0.15),transparent_35%),radial-gradient(circle_at_80%_20%,rgba(25,120,104,0.14),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.56),rgba(255,255,255,0.22))]" />
             <div className="relative">
               <div className="mb-5 flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
-                <span>Long-cycle intelligence</span>
+                <span>GoldenHeat</span>
                 <span className="h-1 w-1 rounded-full bg-[var(--accent)]" />
                 <span>{updated}</span>
               </div>
 
-              <h1 className="max-w-3xl text-4xl font-semibold leading-none tracking-[-0.04em] text-[var(--ink)] sm:text-5xl lg:text-[4.25rem]">
+              <h1 className="max-w-3xl text-4xl font-semibold leading-none tracking-[-0.04em] text-[var(--ink)] sm:text-5xl lg:text-[4.4rem]">
                 {titlePack.title}
               </h1>
               <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--muted-strong)] sm:text-[15px]">
@@ -158,59 +200,28 @@ export default function Dashboard() {
               </p>
 
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                <InsightStrip
-                  label="当前周期"
-                  value={data.merill_clock.phase_label}
-                  hint={`置信度 ${Math.round(data.merill_clock.confidence * 100)}%`}
-                />
-                <InsightStrip
-                  label="超配资产"
-                  value={data.merill_clock.best_asset}
-                  hint={data.merill_clock.transition_warning || '当前阶段无额外预警'}
-                />
-                <InsightStrip
-                  label="市场温度"
-                  value={`${averageTemp.toFixed(0)}°`}
-                  hint={describeTemperature(averageTemp)}
-                />
-              </div>
-
-              <div className="mt-8 flex flex-wrap items-center gap-3">
-                <button className="action-btn action-btn-primary" onClick={() => refetch()} disabled={isFetching}>
-                  {isFetching ? '正在刷新…' : '刷新数据'}
-                </button>
-                <div className="text-sm text-[var(--muted)]">
-                  {strongestSignal ? (
-                    <>
-                      当前最强信号 <span className="font-semibold text-[var(--ink)]">{strongestSignal.name}</span>
-                      <span className="mx-1.5">·</span>
-                      评分 {strongestSignal.score.toFixed(0)}
-                    </>
-                  ) : (
-                    '暂无可展示的月线信号'
-                  )}
-                </div>
+                <InsightStrip label="当前周期" value={data.merill_clock.phase_label} hint={`置信度 ${Math.round(data.merill_clock.confidence * 100)}%`} />
+                <InsightStrip label="市场热度" value={`${averageTemp.toFixed(0)}°`} hint={describeTemperature(averageTemp)} />
+                <InsightStrip label="最强信号" value={strongestSignal?.name || '暂无'} hint={strongestSignal ? `评分 ${strongestSignal.score.toFixed(0)} · ${strongestSignal.level_label}` : '等待数据'} />
               </div>
             </div>
           </div>
 
           <div className="grid gap-5">
             <div className="paper-card">
-              <SectionEyebrow title="Brief" note="一屏速览" />
+              <SectionEyebrow title="关键信息" note="一屏速览" />
               <div className="mt-4 space-y-4">
                 <MetricRow label="覆盖标的" value={`${Math.max(filteredTemps.length, filteredSignals.length, filteredBullBear.length)} 个`} />
+                <MetricRow label="最热资产" value={hottestAsset ? `${hottestAsset.name} ${Math.round(hottestAsset.temperature)}°` : '-'} />
                 <MetricRow label="牛市阶段" value={`${bullCount} 个`} tone="positive" />
                 <MetricRow label="熊市阶段" value={`${bearCount} 个`} tone="negative" />
-                <MetricRow label="最热资产" value={hottestAsset ? `${hottestAsset.name} ${Math.round(hottestAsset.temperature)}°` : '-'} />
-                <MetricRow label="最冷资产" value={coolestAsset ? `${coolestAsset.name} ${Math.round(coolestAsset.temperature)}°` : '-'} />
+                <MetricRow label="超配资产" value={data.merill_clock.best_asset} />
               </div>
             </div>
 
             <div className="paper-card bg-[linear-gradient(180deg,rgba(17,24,39,0.02),rgba(17,24,39,0.08))]">
-              <SectionEyebrow title="Macro note" note="模型解释" />
-              <p className="mt-4 text-[15px] leading-7 text-[var(--muted-strong)]">
-                {data.merill_clock.description}
-              </p>
+              <SectionEyebrow title="模型说明" note="当前判断" />
+              <p className="mt-4 text-[15px] leading-7 text-[var(--muted-strong)]">{data.merill_clock.description}</p>
               {data.merill_clock.transition_warning ? (
                 <div className="mt-4 rounded-2xl border border-[rgba(186,94,61,0.22)] bg-[rgba(186,94,61,0.08)] px-4 py-3 text-sm leading-6 text-[var(--ink)]">
                   {data.merill_clock.transition_warning}
@@ -221,76 +232,89 @@ export default function Dashboard() {
         </section>
 
         <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <OverviewCard label="经济周期" value={data.merill_clock.phase_label} detail={`GDP ${data.merill_clock.gdp_trend === 'up' ? '↑' : '↓'} · CPI ${data.merill_clock.cpi_trend === 'up' ? '↑' : '↓'}`} />
-          <OverviewCard label="市场温度" value={`${averageTemp.toFixed(0)}°`} detail={describeTemperature(averageTemp)} />
+          <OverviewCard label="宏观阶段" value={data.merill_clock.phase_label} detail={`GDP ${data.merill_clock.gdp_trend === 'up' ? '↑' : '↓'} · CPI ${data.merill_clock.cpi_trend === 'up' ? '↑' : '↓'}`} />
+          <OverviewCard label="市场热度" value={`${averageTemp.toFixed(0)}°`} detail={describeTemperature(averageTemp)} />
           <OverviewCard label="月线信号" value={`${filteredSignals.length}`} detail={strongestSignal ? `${strongestSignal.name} ${strongestSignal.level_label}` : '暂无信号'} />
-          <OverviewCard label="仓位建议" value={`${bullCount}/${filteredBullBear.length || 0}`} detail="牛市阶段标的 / 总标的" />
+          <OverviewCard label="牛熊占比" value={`${bullCount}/${filteredBullBear.length || 0}`} detail="牛市阶段标的 / 总标的" />
         </section>
 
-        <section className="mt-10 grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="paper-card">
-            <SectionHeader title="Macro cycle" subtitle="把时钟阶段改写成更容易操作的结构化信息。" />
-            <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-              <div className="space-y-3">
-                {PHASE_ORDER.map((phase, index) => {
-                  const active = data.merill_clock.phase === phase.key
-                  return (
-                    <div
-                      key={phase.key}
-                      className={`rounded-2xl border px-4 py-4 transition-all ${
-                        active
-                          ? 'border-[rgba(17,24,39,0.18)] bg-[rgba(255,255,255,0.62)] shadow-[0_18px_40px_rgba(16,24,40,0.08)]'
-                          : 'border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.34)]'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">phase 0{index + 1}</div>
-                          <div className="mt-1 text-xl font-semibold text-[var(--ink)]">{phase.label}</div>
-                          <div className="mt-2 text-sm leading-6 text-[var(--muted-strong)]">{phase.note}</div>
-                        </div>
-                        <div className={`phase-dot ${active ? 'phase-dot-active' : ''}`} />
-                      </div>
+        <section className="mt-10">
+          <SectionHeader title="顶部核心图表" subtitle="把美林时钟、市场热度、资产分配三块最关键的 chart 直接顶到首屏下方。" />
+          <div className="mt-5 grid gap-5 xl:grid-cols-3">
+            <div className="paper-card">
+              <SectionEyebrow title="美林时钟圆形图" note="宏观周期" />
+              <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_0.95fr] xl:grid-cols-1 2xl:grid-cols-[1fr_0.95fr]">
+                <div className="chart-wrap h-[280px]">
+                  <div className="relative h-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={phaseChartData} dataKey="value" innerRadius={74} outerRadius={108} stroke="rgba(255,255,255,0.85)" strokeWidth={2}>
+                          {phaseChartData.map((entry) => (
+                            <Cell key={entry.name} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Pie data={[{ name: '剩余', value: 100 }, { name: '置信度', value: Math.round(data.merill_clock.confidence * 100) }]} dataKey="value" innerRadius={52} outerRadius={64} startAngle={90} endAngle={-270} stroke="none">
+                          <Cell fill="rgba(17,24,39,0.08)" />
+                          <Cell fill={getPhaseColor(data.merill_clock.phase)} />
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                      <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">当前阶段</div>
+                      <div className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[var(--ink)]">{data.merill_clock.phase_label}</div>
+                      <div className="mt-2 text-sm text-[var(--muted-strong)]">置信度 {Math.round(data.merill_clock.confidence * 100)}%</div>
                     </div>
-                  )
-                })}
-              </div>
-
-              <div className="rounded-[28px] border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.48)] p-5">
-                <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">current reading</div>
-                <div className="mt-3 text-5xl font-semibold leading-none tracking-[-0.05em] text-[var(--ink)]">
-                  {Math.round(data.merill_clock.confidence * 100)}%
+                  </div>
                 </div>
-                <div className="mt-2 text-sm text-[var(--muted-strong)]">当前阶段置信度</div>
 
-                <div className="mt-6 space-y-3">
-                  <MiniDatum label="PMI" value={formatMaybeNumber(data.merill_clock.pmi_value)} />
-                  <MiniDatum label="GDP slope" value={formatSigned(data.merill_clock.gdp_slope)} />
-                  <MiniDatum label="CPI slope" value={formatSigned(data.merill_clock.cpi_slope)} />
-                  <MiniDatum label="M2 growth" value={formatMaybeNumber(data.merill_clock.m2_growth, '%')} />
-                  <MiniDatum label="Credit" value={data.merill_clock.credit_signal || '-'} />
+                <div className="space-y-3">
+                  {PHASE_ORDER.map((phase) => {
+                    const active = data.merill_clock.phase === phase.key
+                    return (
+                      <div key={phase.key} className={`rounded-[20px] border px-4 py-3 ${active ? 'border-[rgba(17,24,39,0.18)] bg-[rgba(255,255,255,0.6)] shadow-[0_14px_30px_rgba(16,24,40,0.06)]' : 'border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.34)]'}`}>
+                        <div className="flex items-center gap-3">
+                          <span className="h-3 w-3 rounded-full" style={{ background: phase.color }} />
+                          <span className="font-semibold text-[var(--ink)]">{phase.label}</span>
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-[var(--muted-strong)]">{phase.note}</div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="grid gap-5">
             <div className="paper-card">
-              <SectionHeader title="Allocation" subtitle="推荐配置用图表和比例同时表达，首页一眼看清资金倾向。" />
-              <div className="mt-6 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-                <div className="chart-wrap h-[250px]">
+              <SectionEyebrow title="市场热度图" note="热度排名" />
+              <div className="mt-5 chart-wrap h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={temperatureChartData} layout="vertical" margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" horizontal={false} />
+                    <XAxis type="number" domain={[0, 100]} tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={68} tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip formatter={(value) => [`${value ?? '-'}°`, '热度']} contentStyle={tooltipStyle} />
+                    <Bar dataKey="temperature" radius={[0, 10, 10, 0]}>
+                      {temperatureChartData.map((entry) => (
+                        <Cell key={entry.name} fill={temperatureBarColor(entry.temperature)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-3 text-center text-xs text-[var(--muted)]">
+                <MiniTag title="0–30" text="偏冷" />
+                <MiniTag title="30–60" text="中性" />
+                <MiniTag title="60–100" text="偏热" />
+              </div>
+            </div>
+
+            <div className="paper-card">
+              <SectionEyebrow title="资产分配图" note="建议配置" />
+              <div className="mt-5 grid gap-5 lg:grid-cols-[0.9fr_1.1fr] xl:grid-cols-1 2xl:grid-cols-[0.9fr_1.1fr]">
+                <div className="chart-wrap h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie
-                        data={allocationChartData}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={56}
-                        outerRadius={92}
-                        paddingAngle={3}
-                        stroke="rgba(255,255,255,0.8)"
-                        strokeWidth={2}
-                      >
+                      <Pie data={allocationChartData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={98} paddingAngle={3} stroke="rgba(255,255,255,0.8)" strokeWidth={2}>
                         {allocationChartData.map((entry) => (
                           <Cell key={entry.name} fill={entry.fill} />
                         ))}
@@ -318,83 +342,96 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-
-            <div className="paper-card">
-              <SectionHeader title="Temperature overview" subtitle="用温度带 + 排名柱状图，一起看市场在哪个风险区间。" />
-              <div className="mt-6">
-                <TemperatureRail value={averageTemp} />
-              </div>
-              <div className="mt-6 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-                <div className="grid grid-cols-3 gap-3 text-center text-xs text-[var(--muted)]">
-                  <div>
-                    <div className="font-semibold text-[var(--ink)]">0–30</div>
-                    <div className="mt-1">冷静 / 可观察</div>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-[var(--ink)]">30–60</div>
-                    <div className="mt-1">均衡 / 等确认</div>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-[var(--ink)]">60–100</div>
-                    <div className="mt-1">偏热 / 控仓位</div>
-                  </div>
-                </div>
-
-                <div className="chart-wrap h-[220px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={tempChartData} layout="vertical" margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" horizontal={false} />
-                      <XAxis type="number" domain={[0, 100]} tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} />
-                      <YAxis type="category" dataKey="name" width={68} tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
-                      <Tooltip formatter={(value) => [`${value ?? '-'}°`, '温度']} contentStyle={tooltipStyle} />
-                      <Bar dataKey="temperature" radius={[0, 10, 10, 0]}>
-                        {tempChartData.map((entry) => (
-                          <Cell key={entry.name} fill={temperatureBarColor(entry.temperature)} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
           </div>
         </section>
 
         <section className="mt-10 grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
           <div className="paper-card">
-            <SectionHeader title="Signal strength chart" subtitle="把最强信号前六名做成横向对比图，便于快速排序。" />
-            {signalChartData.length > 0 ? (
-              <div className="mt-6 chart-wrap h-[320px]">
+            <SectionHeader title="牛熊分界指标" subtitle="用价格相对年线、年线相对两年线两个关键指标，展示当前处于牛熊哪个区间。" />
+            {bullBearMetricData.length > 0 ? (
+              <div className="mt-6 chart-wrap h-[340px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={signalChartData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                  <BarChart data={bullBearMetricData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" vertical={false} />
                     <XAxis dataKey="name" tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 100]} tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={tooltipStyle} />
-                    <Bar dataKey="score" fill="var(--accent)" radius={[10, 10, 0, 0]} />
-                    <Bar dataKey="trend" fill="#1f7a69" radius={[10, 10, 0, 0]} />
-                    <Bar dataKey="pullback" fill="#d4a24c" radius={[10, 10, 0, 0]} />
+                    <YAxis tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value ?? '-'}%`, '指标']} />
+                    <Bar dataKey="priceVsMa12" name="现价 vs 年线" fill="var(--accent)" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="ma12VsMa24" name="年线 vs 两年线" fill="#1f7a69" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             ) : (
-              <EmptyState text="当前市场暂无可绘制的信号图表。" />
+              <EmptyState text="当前市场暂无牛熊分界图表数据。" />
             )}
           </div>
 
           <div className="paper-card">
-            <SectionHeader title="Signal legend" subtitle="图表不是装饰，对应的维度解释也要放在首页。" />
+            <SectionHeader title="判断依据" subtitle="牛熊分界不是一句话，而是要看结构依据。" />
             <div className="mt-6 space-y-4">
-              <LegendRow color="var(--accent)" title="综合评分" desc="最终月线信号总分，用来排序。" />
-              <LegendRow color="#1f7a69" title="趋势分" desc="趋势结构越顺，得分越高。" />
-              <LegendRow color="#d4a24c" title="回调分" desc="回踩位置越理想，得分越高。" />
-              <LegendRow color="#7d7468" title="量能 / 估值" desc="保留在下方 roster 内，继续作为辅助维度阅读。" />
+              <LegendRow color="var(--accent)" title="现价 vs 年线" desc="价格站上 MA12 往往代表趋势占优；跌破年线则进入更谨慎阶段。" />
+              <LegendRow color="#1f7a69" title="年线 vs 两年线" desc="MA12 上穿 MA24 时，说明更长期结构开始转强。" />
+              <LegendRow color="#d4a24c" title="仓位区间" desc="结合趋势强弱和阶段位置，给出 20–50%、50–80%、80–100% 等区间建议。" />
+              <div className="rounded-[22px] border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.46)] px-4 py-4">
+                <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">当前结论</div>
+                <div className="mt-2 text-xl font-semibold text-[var(--ink)]">{data.merill_clock.phase_label} · {data.merill_clock.best_asset}</div>
+                <p className="mt-3 text-sm leading-7 text-[var(--muted-strong)]">{data.merill_clock.description}</p>
+              </div>
             </div>
           </div>
         </section>
 
+        <section className="mt-10 grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
+          <div className="paper-card">
+            <SectionHeader title="趋势结构图" subtitle="当前接口没有完整 K 线序列，这里先用现价与 MA5 / MA10 / MA20 的相对结构做趋势图展示。" />
+            {trendChartData.length > 0 ? (
+              <div className="mt-6 chart-wrap h-[340px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trendChartData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} domain={['dataMin - 8', 'dataMax + 8']} />
+                    <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value ?? '-'}%`, '相对位置']} />
+                    <Line type="monotone" dataKey="现价" stroke="var(--accent)" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="MA5" stroke="#1f7a69" strokeWidth={2} dot={{ r: 2.5 }} />
+                    <Line type="monotone" dataKey="MA10" stroke="#d4a24c" strokeWidth={2} dot={{ r: 2.5 }} />
+                    <Line type="monotone" dataKey="MA20" stroke="#64748b" strokeWidth={2} dot={{ r: 2.5 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyState text="当前市场暂无趋势图数据。" />
+            )}
+          </div>
+
+          <div className="paper-card">
+            <SectionHeader title="趋势评分面积图" subtitle="把最强信号前六名按总分排开，便于一眼看出强弱梯队。" />
+            {trendChartData.length > 0 ? (
+              <div className="mt-6 chart-wrap h-[340px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendChartData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                    <defs>
+                      <linearGradient id="scoreFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#b45a3c" stopOpacity={0.42} />
+                        <stop offset="100%" stopColor="#b45a3c" stopOpacity={0.05} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} />
+                    <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value ?? '-'} 分`, '评分']} />
+                    <Area type="monotone" dataKey="score" stroke="var(--accent)" fill="url(#scoreFill)" strokeWidth={3} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyState text="当前市场暂无评分趋势图。" />
+            )}
+          </div>
+        </section>
+
         <section className="mt-10">
-          <SectionHeader title="Asset temperature board" subtitle="保留原来的温度功能，但改成更直观的卡片式热区。" />
+          <SectionHeader title="市场温度卡片" subtitle="保留温度功能，但放到下方做详细浏览，不再挤占首屏。" />
           {filteredTemps.length > 0 ? (
             <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               {filteredTemps.map((item) => (
@@ -407,12 +444,12 @@ export default function Dashboard() {
         </section>
 
         <section className="mt-10">
-          <SectionHeader title="Monthly signal roster" subtitle="保留月线信号功能，但换成轻量、可扫读的杂志式表格。" />
+          <SectionHeader title="月线信号清单" subtitle="继续保留月线信号明细，方便你往下看每个标的结构。" />
           {filteredSignals.length > 0 ? <SignalRoster data={filteredSignals} /> : <EmptyState text="当前市场暂无月线信号。" />}
         </section>
 
         <section className="mt-10">
-          <SectionHeader title="Bull / bear positioning" subtitle="保留牛熊分割线和仓位建议，用更适合首页的卡片表达。" />
+          <SectionHeader title="牛熊仓位建议" subtitle="继续保留卡片式仓位建议，和上面的分界图形成上下呼应。" />
           {filteredBullBear.length > 0 ? (
             <div className="mt-5 grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
               {filteredBullBear.map((item) => (
@@ -441,7 +478,7 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
   return (
     <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
       <div>
-        <div className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Section</div>
+        <div className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">图表区</div>
         <h2 className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">{title}</h2>
       </div>
       <p className="max-w-2xl text-sm leading-6 text-[var(--muted-strong)]">{subtitle}</p>
@@ -459,17 +496,8 @@ function InsightStrip({ label, value, hint }: { label: string; value: string; hi
   )
 }
 
-function MetricRow({
-  label,
-  value,
-  tone = 'default',
-}: {
-  label: string
-  value: string
-  tone?: 'default' | 'positive' | 'negative'
-}) {
+function MetricRow({ label, value, tone = 'default' }: { label: string; value: string; tone?: 'default' | 'positive' | 'negative' }) {
   const toneClass = tone === 'positive' ? 'text-emerald-700' : tone === 'negative' ? 'text-rose-700' : 'text-[var(--ink)]'
-
   return (
     <div className="flex items-center justify-between gap-4 border-b border-[rgba(17,24,39,0.08)] pb-3 last:border-b-0 last:pb-0">
       <span className="text-sm text-[var(--muted-strong)]">{label}</span>
@@ -488,34 +516,11 @@ function OverviewCard({ label, value, detail }: { label: string; value: string; 
   )
 }
 
-function MiniDatum({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b border-[rgba(17,24,39,0.08)] pb-2 last:border-b-0">
-      <span className="text-sm text-[var(--muted-strong)]">{label}</span>
-      <span className="font-mono text-sm text-[var(--ink)]">{value}</span>
-    </div>
-  )
-}
-
-function TemperatureRail({ value }: { value: number }) {
-  const clamped = Math.max(0, Math.min(100, value))
-
+function MiniTag({ title, text }: { title: string; text: string }) {
   return (
     <div>
-      <div className="relative h-4 overflow-hidden rounded-full bg-[linear-gradient(90deg,#9cc7ff_0%,#f8d36a_48%,#e08d62_74%,#b14535_100%)]">
-        <div className="absolute inset-y-0 left-0 w-full opacity-15 [background-image:linear-gradient(90deg,rgba(255,255,255,0.5)_1px,transparent_1px)] [background-size:10%_100%]" />
-        <div
-          className="absolute top-1/2 h-7 w-7 -translate-y-1/2 rounded-full border border-white bg-[rgba(255,255,255,0.9)] shadow-[0_12px_20px_rgba(17,24,39,0.14)]"
-          style={{ left: `calc(${clamped}% - 14px)` }}
-        />
-      </div>
-      <div className="mt-4 flex items-end justify-between gap-4">
-        <div>
-          <div className="text-5xl font-semibold tracking-[-0.06em] text-[var(--ink)]">{clamped.toFixed(0)}°</div>
-          <div className="mt-2 text-sm text-[var(--muted)]">{describeTemperature(clamped)}</div>
-        </div>
-        <div className="text-right text-xs uppercase tracking-[0.22em] text-[var(--muted)]">Average temperature</div>
-      </div>
+      <div className="font-semibold text-[var(--ink)]">{title}</div>
+      <div className="mt-1">{text}</div>
     </div>
   )
 }
@@ -529,9 +534,7 @@ function TemperatureCard({ item }: { item: TemperatureData }) {
           <div className="text-lg font-semibold text-[var(--ink)]">{item.name}</div>
           <div className="mt-1 text-xs uppercase tracking-[0.22em] text-[var(--muted)]">{item.symbol}</div>
         </div>
-        <span className="rounded-full border border-[rgba(17,24,39,0.08)] px-3 py-1 text-xs text-[var(--muted-strong)]">
-          {marketName(getMarket(item.symbol))}
-        </span>
+        <span className="rounded-full border border-[rgba(17,24,39,0.08)] px-3 py-1 text-xs text-[var(--muted-strong)]">{marketName(getMarket(item.symbol))}</span>
       </div>
 
       <div className="mt-6 flex items-end justify-between gap-4">
@@ -559,11 +562,11 @@ function SignalRoster({ data }: { data: SignalData[] }) {
   return (
     <div className="mt-5 overflow-hidden rounded-[28px] border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.48)] shadow-[0_25px_70px_rgba(15,23,42,0.06)]">
       <div className="hidden grid-cols-[1.2fr_0.9fr_0.7fr_0.8fr_0.9fr] gap-4 border-b border-[rgba(17,24,39,0.08)] px-6 py-4 text-[11px] uppercase tracking-[0.22em] text-[var(--muted)] md:grid">
-        <div>Asset</div>
-        <div>Structure</div>
-        <div>Price</div>
-        <div>Score</div>
-        <div>Signal</div>
+        <div>标的</div>
+        <div>结构</div>
+        <div>价格</div>
+        <div>评分</div>
+        <div>信号</div>
       </div>
 
       <div className="divide-y divide-[rgba(17,24,39,0.08)]">
@@ -595,14 +598,14 @@ function SignalRoster({ data }: { data: SignalData[] }) {
 
             <div className="flex items-center md:justify-center">
               <div className="score-block">
-                <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--muted)]">Score</div>
+                <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--muted)]">评分</div>
                 <div className="mt-2 text-5xl font-semibold leading-none tracking-[-0.07em] text-[var(--ink)]">{item.score.toFixed(0)}</div>
               </div>
             </div>
 
             <div className="flex flex-col justify-between gap-3">
               <div className="rounded-[22px] border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.58)] px-4 py-4">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">Signal</div>
+                <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">信号</div>
                 <div className="mt-2 text-lg font-semibold text-[var(--ink)]">{item.level_label}</div>
                 <div className="mt-2 text-sm text-[var(--muted-strong)]">量比 {item.volume_ratio?.toFixed(2) ?? '-'} · {item.volume_signal || '无量能补充'}</div>
               </div>
@@ -616,7 +619,6 @@ function SignalRoster({ data }: { data: SignalData[] }) {
 
 function Breakdown({ label, value, dim = false }: { label: string; value: number; dim?: boolean }) {
   const width = Math.max(0, Math.min(100, value))
-
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-3 text-xs">
@@ -658,14 +660,7 @@ function PositionCard({ item }: { item: BullBearData }) {
           <span className="font-mono text-[var(--ink)]">{rangeMid.toFixed(0)}%</span>
         </div>
         <div className="relative h-3 rounded-full bg-[rgba(17,24,39,0.08)]">
-          <div
-            className="absolute top-0 h-3 rounded-full"
-            style={{
-              left: `${item.position_min}%`,
-              width: `${Math.max(6, item.position_max - item.position_min)}%`,
-              background: `linear-gradient(90deg, ${phaseTone.color}, ${phaseTone.color}99)`,
-            }}
-          />
+          <div className="absolute top-0 h-3 rounded-full" style={{ left: `${item.position_min}%`, width: `${Math.max(6, item.position_max - item.position_min)}%`, background: `linear-gradient(90deg, ${phaseTone.color}, ${phaseTone.color}99)` }} />
         </div>
       </div>
 
@@ -675,7 +670,7 @@ function PositionCard({ item }: { item: BullBearData }) {
           <div className="mt-2 font-mono text-[var(--ink)]">{item.ma12_vs_ma24_pct >= 0 ? '+' : ''}{item.ma12_vs_ma24_pct.toFixed(1)}%</div>
         </div>
         <div className="rounded-[18px] bg-[rgba(255,255,255,0.44)] px-4 py-3">
-          <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">Strategy</div>
+          <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">策略</div>
           <div className="mt-2 text-[var(--ink)]">{item.strategy}</div>
         </div>
       </div>
@@ -706,7 +701,7 @@ function LegendRow({ color, title, desc }: { color: string; title: string; desc:
   )
 }
 
-function Tag({ children }: { children: React.ReactNode }) {
+function Tag({ children }: { children: ReactNode }) {
   return <span className="rounded-full border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.5)] px-3 py-1 text-xs text-[var(--muted-strong)]">{children}</span>
 }
 
@@ -725,7 +720,7 @@ function ErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-[1320px] items-center justify-center px-4">
       <div className="paper-card max-w-xl text-center">
-        <div className="text-sm uppercase tracking-[0.24em] text-[var(--muted)]">Load failed</div>
+        <div className="text-sm uppercase tracking-[0.24em] text-[var(--muted)]">加载失败</div>
         <div className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">首页数据加载失败</div>
         <p className="mt-4 text-sm leading-7 text-[var(--muted-strong)]">{error.message}</p>
         <button className="action-btn action-btn-primary mt-6" onClick={onRetry}>重新加载</button>
@@ -742,30 +737,11 @@ function EmptyState({ text }: { text: string }) {
   )
 }
 
-const ALLOCATION_COLORS = ['#b45a3c', '#1f7a69', '#d4a24c', '#6b7280', '#d9795f', '#6ea699']
-
-const tooltipStyle = {
-  border: '1px solid rgba(17,24,39,0.08)',
-  borderRadius: '16px',
-  background: 'rgba(255,255,255,0.94)',
-  color: '#17181c',
-  boxShadow: '0 16px 40px rgba(17,24,39,0.10)',
-}
-
 function fmtPrice(value: number | null): string {
   if (value === null) return '-'
   if (value >= 10000) return value.toLocaleString('en-US', { maximumFractionDigits: 0 })
   if (value >= 100) return value.toFixed(1)
   return value.toFixed(2)
-}
-
-function formatMaybeNumber(value: number | null, suffix = ''): string {
-  if (value === null) return '-'
-  return `${value.toFixed(1)}${suffix}`
-}
-
-function formatSigned(value: number): string {
-  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}`
 }
 
 function describeTemperature(value: number): string {
@@ -788,6 +764,10 @@ function temperatureBarColor(value: number) {
   if (value < 60) return '#d4a24c'
   if (value < 80) return '#d9795f'
   return '#b45a3c'
+}
+
+function getPhaseColor(phase: string) {
+  return PHASE_ORDER.find((item) => item.key === phase)?.color || '#64748b'
 }
 
 function getPhaseTone(phase: BullBearData['phase']) {

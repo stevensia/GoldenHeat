@@ -3,7 +3,7 @@
 - CORS 白名单
 - Rate Limiting (自定义 middleware)
 - Bearer Token 认证 (写入接口)
-- 路由挂载
+- 路由挂载: /api/ (旧兼容) + /api/v1/ (新)
 """
 
 import time
@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 from backend.config import CORS_ORIGINS, RATE_LIMIT_READ, RATE_LIMIT_WRITE
 from backend.db.connection import init_db
 
-# 路由模块
+# 路由模块 — 现有 API
 from backend.api.dashboard import router as dashboard_router
 from backend.api.signals import router as signals_router
 from backend.api.merill import router as merill_router
@@ -34,6 +34,11 @@ from backend.api.macro import router as macro_router
 from backend.api.clock_public import router as clock_public_router
 from backend.api.auth_routes import router as auth_router
 
+# V2.5 新增路由
+from backend.api.admin_watchlist import router as admin_watchlist_router
+from backend.api.admin_config import router as admin_config_router
+from backend.api.data_health import router as data_health_router
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -44,7 +49,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="GoldenHeat API",
     description="AI 中长周期投资决策系统",
-    version="0.1.0",
+    version="2.5.0",
 )
 
 # ===== CORS 配置 =====
@@ -52,7 +57,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
@@ -83,11 +88,11 @@ async def rate_limit_middleware(request: Request, call_next):
     """Rate Limiting 中间件
 
     - GET 请求: RATE_LIMIT_READ req/min per IP
-    - POST 请求: RATE_LIMIT_WRITE req/min per IP
+    - POST/PUT/DELETE 请求: RATE_LIMIT_WRITE req/min per IP
     """
     client_ip = request.client.host if request.client else "unknown"
 
-    if request.method == "POST":
+    if request.method in ("POST", "PUT", "DELETE"):
         limit = RATE_LIMIT_WRITE
     else:
         limit = RATE_LIMIT_READ
@@ -102,7 +107,7 @@ async def rate_limit_middleware(request: Request, call_next):
     return response
 
 
-# ===== 路由挂载 =====
+# ===== 路由挂载 — /api/ (旧兼容) =====
 app.include_router(dashboard_router, prefix="/api", tags=["Dashboard"])
 app.include_router(signals_router, prefix="/api", tags=["Signals"])
 app.include_router(merill_router, prefix="/api", tags=["Merill Clock"])
@@ -115,15 +120,35 @@ app.include_router(macro_router, prefix="/api", tags=["Macro"])
 app.include_router(clock_public_router, prefix="/api", tags=["Clock Public"])
 app.include_router(auth_router, prefix="/api", tags=["Auth"])
 
+# ===== 路由挂载 — /api/v1/ (新) =====
+# 复制现有路由到 v1 前缀（向后兼容）
+app.include_router(dashboard_router, prefix="/api/v1", tags=["V1 Dashboard"])
+app.include_router(signals_router, prefix="/api/v1", tags=["V1 Signals"])
+app.include_router(merill_router, prefix="/api/v1", tags=["V1 Merill Clock"])
+app.include_router(bullbear_router, prefix="/api/v1", tags=["V1 Bull Bear"])
+app.include_router(admin_router, prefix="/api/v1", tags=["V1 Admin"])
+app.include_router(admin_clock_router, prefix="/api/v1", tags=["V1 Admin Clock"])
+app.include_router(valuation_router, prefix="/api/v1", tags=["V1 Valuation"])
+app.include_router(kline_history_router, prefix="/api/v1", tags=["V1 K-Line"])
+app.include_router(macro_router, prefix="/api/v1", tags=["V1 Macro"])
+app.include_router(clock_public_router, prefix="/api/v1", tags=["V1 Clock Public"])
+app.include_router(auth_router, prefix="/api/v1", tags=["V1 Auth"])
+
+# V2.5 新增 API（仅 /api/v1/ 前缀）
+app.include_router(admin_watchlist_router, prefix="/api/v1", tags=["V1 Watchlist"])
+app.include_router(admin_config_router, prefix="/api/v1", tags=["V1 Config"])
+app.include_router(data_health_router, prefix="/api/v1", tags=["V1 Health"])
+
 
 @app.on_event("startup")
 async def startup():
-    """启动时初始化数据库"""
+    """启动时初始化数据库 + 运行迁移"""
     init_db()
-    logger.info("🚀 GoldenHeat API 启动完成")
+    logger.info("🚀 GoldenHeat API v2.5 启动完成")
 
 
 @app.get("/api/health")
 async def health():
     """健康检查"""
-    return {"status": "ok", "service": "GoldenHeat"}
+    from backend.api.response import ok
+    return ok({"status": "ok", "service": "GoldenHeat", "version": "2.5.0"})

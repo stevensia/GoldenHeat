@@ -14,6 +14,7 @@ from backend.engines.monthly_signal import MonthlySignal
 from backend.engines.bull_bear import BullBearJudge
 from backend.engines.temperature import MarketTemperature
 from backend.db.connection import fetchall, fetchone
+from backend.api.response import ok, with_freshness, server_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -191,7 +192,7 @@ async def get_dashboard():
         bb_judge = BullBearJudge()
         bull_bears = bb_judge.judge_all()
 
-        return {
+        data = {
             "merill_clock": merill_dict,
             "market_temperature": {
                 "average": market_avg.to_dict() if market_avg else None,
@@ -201,6 +202,8 @@ async def get_dashboard():
             "bull_bear": [b.to_dict() for b in bull_bears],
         }
 
+        return with_freshness(data)
+
     except Exception as e:
         logger.error(f"Dashboard 数据生成失败: {e}")
-        return {"error": str(e)}
+        return server_error(f"Dashboard 数据生成失败: {e}")

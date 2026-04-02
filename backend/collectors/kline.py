@@ -13,6 +13,7 @@ import yfinance as yf
 
 from backend.config import WATCHLIST
 from backend.db.connection import get_db
+from backend.repos.kline_repo import KlineRepo
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class KlineCollector:
             years: 拉取历史数据的年份数，默认10年
         """
         self.years = years
+        self.kline_repo = KlineRepo()
 
     def fetch_symbol(self, key: str, info: dict) -> pd.DataFrame | None:
         """拉取单个标的的月线数据
@@ -100,32 +102,25 @@ class KlineCollector:
         return None
 
     def save_to_db(self, df: pd.DataFrame):
-        """将 K 线数据写入 monthly_kline 表（UPSERT）"""
+        """将 K 线数据写入 monthly_kline 表（通过 KlineRepo UPSERT）"""
         if df is None or df.empty:
             return 0
 
-        conn = get_db()
         rows = df.to_dict("records")
-        inserted = 0
-
-        for row in rows:
-            try:
-                conn.execute(
-                    """INSERT INTO monthly_kline (symbol, date, open, high, low, close, volume, adj_close)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                       ON CONFLICT(symbol, date) DO UPDATE SET
-                           open=excluded.open, high=excluded.high, low=excluded.low,
-                           close=excluded.close, volume=excluded.volume, adj_close=excluded.adj_close
-                    """,
-                    (row["symbol"], row["date"], row["open"], row["high"],
-                     row["low"], row["close"], row["volume"], row["adj_close"]),
-                )
-                inserted += 1
-            except Exception as e:
-                logger.error(f"写入失败 {row['symbol']} {row['date']}: {e}")
-
-        conn.commit()
-        return inserted
+        data_list = [
+            {
+                "symbol": row["symbol"],
+                "date": row["date"],
+                "open": row["open"],
+                "high": row["high"],
+                "low": row["low"],
+                "close": row["close"],
+                "volume": row["volume"],
+                "adj_close": row["adj_close"],
+            }
+            for row in rows
+        ]
+        return self.kline_repo.upsert_many(data_list, conflict_keys=["symbol", "date"])
 
     def collect_all(self) -> dict:
         """拉取 WATCHLIST 中所有标的的月线数据

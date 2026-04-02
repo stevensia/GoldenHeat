@@ -22,6 +22,7 @@ from typing import Optional
 import pandas as pd
 
 from backend.db.connection import get_db
+from backend.repos.macro_repo import MacroRepo
 
 logger = logging.getLogger(__name__)
 
@@ -79,26 +80,12 @@ class MacroCNCollector:
 
     def __init__(self):
         self.ak = _safe_import_akshare()
+        self.macro_repo = MacroRepo()
 
     def _save_indicator(self, indicator: str, data: list[tuple[str, float]], source: str = "akshare") -> int:
         if not data:
             return 0
-        conn = get_db()
-        inserted = 0
-        for date_str, value in data:
-            try:
-                conn.execute(
-                    """INSERT INTO macro_data (indicator, date, value, source)
-                       VALUES (?, ?, ?, ?)
-                       ON CONFLICT(indicator, date) DO UPDATE SET
-                           value=excluded.value, source=excluded.source,
-                           fetched_at=datetime('now')""",
-                    (indicator, date_str, float(value), source),
-                )
-                inserted += 1
-            except Exception as e:
-                logger.error(f"写入 {indicator} {date_str} 失败: {e}")
-        conn.commit()
+        inserted = self.macro_repo.save_indicator_batch(indicator, data, source=source)
         logger.info(f"✅ {indicator}: 写入 {inserted} 条 (source={source})")
         return inserted
 

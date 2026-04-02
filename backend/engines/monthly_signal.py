@@ -24,7 +24,8 @@ import numpy as np
 import pandas as pd
 
 from backend.config import WATCHLIST, MONTHLY_SIGNAL
-from backend.db.connection import fetchall
+from backend.repos.kline_repo import KlineRepo
+from backend.repos.valuation_repo import ValuationRepo
 
 logger = logging.getLogger(__name__)
 
@@ -123,15 +124,17 @@ class MonthlySignal:
     用 pandas rolling 手算 MA，不依赖 TA-Lib。
     """
 
-    def __init__(self):
+    def __init__(self, kline_repo: KlineRepo | None = None, valuation_repo: ValuationRepo | None = None):
         self.ma_periods = MONTHLY_SIGNAL["ma_periods"]  # [5, 10, 20]
         self.pe_low = MONTHLY_SIGNAL["pe_low_percentile"]   # 30
         self.pe_high = MONTHLY_SIGNAL["pe_high_percentile"]  # 70
         self.vol_threshold = MONTHLY_SIGNAL["volume_change_threshold"]  # 1.5
+        self.kline_repo = kline_repo or KlineRepo()
+        self.valuation_repo = valuation_repo or ValuationRepo()
 
     def _load_kline(self, symbol: str) -> pd.DataFrame:
-        """从 DB 加载月线K线数据"""
-        rows = fetchall(
+        """从 DB 加载月线K线数据（通过 KlineRepo）"""
+        rows = self.kline_repo.raw_query(
             """SELECT date, open, high, low, close, volume, adj_close
                FROM monthly_kline WHERE symbol = ?
                ORDER BY date ASC""",
@@ -269,7 +272,7 @@ class MonthlySignal:
             - PE > 70% → -20 (高估减分)
         """
         row = None
-        rows = fetchall(
+        rows = self.valuation_repo.raw_query(
             """SELECT pe_percentile, pb_percentile FROM valuation
                WHERE symbol = ? ORDER BY date DESC LIMIT 1""",
             (symbol,),
@@ -301,7 +304,7 @@ class MonthlySignal:
         当没有 PE/PB 数据时的降级方案：
         当前价格在10年价格区间中的位置
         """
-        rows = fetchall(
+        rows = self.kline_repo.raw_query(
             """SELECT close FROM monthly_kline
                WHERE symbol = ? ORDER BY date ASC""",
             (symbol,),

@@ -150,7 +150,7 @@ export default function AdminClock() {
   // === 未登录 ===
   if (!authed) {
     return (
-      <div className="page-shell min-h-screen">
+      <div className="min-h-[60vh]">
         <div className="mx-auto max-w-md px-4 pt-24">
           <div className="rounded-2xl p-8" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
             <div className="text-center mb-6">
@@ -223,7 +223,7 @@ export default function AdminClock() {
 
   // === 已登录 ===
   return (
-    <div className="page-shell min-h-screen">
+    <div className="min-h-[60vh]">
       <div className="mx-auto max-w-[1100px] px-4 pb-16 pt-6 sm:px-6">
         {/* 顶栏 */}
         <div className="flex items-center justify-between mb-6">

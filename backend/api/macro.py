@@ -7,6 +7,7 @@ GET /api/macro/details
 import logging
 from fastapi import APIRouter
 from backend.db.connection import fetchall
+from backend.api.response import ok, server_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -84,8 +85,8 @@ async def get_macro_details():
                 "trend": trend,
             })
 
-        return {"indicators": indicators}
+        return ok({"indicators": indicators})
 
     except Exception as e:
         logger.error(f"宏观数据查询失败: {e}")
-        return {"error": str(e)}
+        return server_error(f"宏观数据查询失败: {e}")

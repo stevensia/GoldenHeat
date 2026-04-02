@@ -17,7 +17,7 @@ import {
   fetchClockSummary,
 } from '../api/client'
 import type { KlineHistoryPoint, MacroDetail, ValuationHistoryPoint } from '../api/types'
-import Navbar, { type MarketTab } from '../components/Navbar'
+import type { MarketTab } from '../components/Navbar'
 import PhilosophyBanner from '../components/PhilosophyBanner'
 import MerillClock from '../components/MerillClock'
 import TemperatureGauge from '../components/TemperatureGauge'
@@ -112,21 +112,11 @@ export default function Dashboard() {
 
   // === 加载 / 错误状态 ===
   if (isLoading) {
-    return (
-      <div className="page-shell">
-        <Navbar activeTab={tab} onTabChange={setTab} />
-        <Loading />
-      </div>
-    )
+    return <Loading />
   }
 
   if (error) {
-    return (
-      <div className="page-shell">
-        <Navbar activeTab={tab} onTabChange={setTab} />
-        <ErrorState error={error as Error} onRetry={() => refetch()} />
-      </div>
-    )
+    return <ErrorState error={error as Error} onRetry={() => refetch()} />
   }
 
   if (!data) return null
@@ -144,10 +134,11 @@ export default function Dashboard() {
   const updated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleString('zh-CN') : '-'
 
   return (
-    <div className="page-shell">
-      <Navbar activeTab={tab} onTabChange={setTab} />
+    <div>
+      <div className="mx-auto max-w-[1320px] px-4 pb-16 pt-6 sm:px-6 lg:px-8">
 
-      <main className="mx-auto max-w-[1320px] px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+        {/* 市场筛选 tabs (内联) */}
+        <MarketTabs activeTab={tab} onTabChange={setTab} />
         {/* ═══════════════════════════════════════════
          * 第一屏：宏观定位（30 秒建立位置感）
          * ═══════════════════════════════════════════ */}
@@ -256,7 +247,7 @@ export default function Dashboard() {
             <DataSourcePanel data={macroDetails as MacroDetail[] | null} />
           </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 }
@@ -335,4 +326,35 @@ function describeTemperature(value: number): string {
   if (value < 60) return '中性，等待确认'
   if (value < 80) return '偏热，谨慎管理仓位'
   return '高热，优先防守'
+}
+
+const MARKET_TABS: { key: MarketTab; label: string }[] = [
+  { key: 'all', label: '总览' },
+  { key: 'us', label: '美股' },
+  { key: 'cn', label: 'A股' },
+  { key: 'hk', label: '港股' },
+  { key: 'crypto', label: '加密' },
+]
+
+function MarketTabs({ activeTab, onTabChange }: { activeTab: MarketTab; onTabChange: (t: MarketTab) => void }) {
+  return (
+    <div className="mb-6 flex items-center gap-1 overflow-x-auto">
+      {MARKET_TABS.map((t) => {
+        const active = t.key === activeTab
+        return (
+          <button
+            key={t.key}
+            onClick={() => onTabChange(t.key)}
+            className={`shrink-0 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all cursor-pointer ${
+              active
+                ? 'bg-[#eab308] text-[#0a0a14] shadow-[0_0_12px_rgba(234,179,8,0.3)]'
+                : 'text-[#777] hover:text-[#ccc] hover:bg-white/[0.04]'
+            }`}
+          >
+            {t.label}
+          </button>
+        )
+      })}
+    </div>
+  )
 }

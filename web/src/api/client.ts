@@ -1,4 +1,11 @@
-/* API Client — fetch wrapper for GoldenHeat backend */
+/* API Client — fetch wrapper for GoldenHeat backend
+ *
+ * V2.5 升级:
+ * - v1 API base path 支持
+ * - 统一响应解析 ({ok, data, meta} 格式)
+ * - 请求拦截器: 自动添加 JWT
+ * - 错误处理: 401 → 跳转登录
+ */
 
 import type {
   DashboardData,
@@ -10,27 +17,139 @@ import type {
   ClockIndicator,
 } from './types'
 
-// API 基础路径：生产环境 /heat/api，开发环境 /api（vite proxy）
-const API_BASE = import.meta.env.DEV ? '/api' : '/heat/api'
+// === JWT 管理 ===
+const JWT_STORAGE_KEY = 'goldenheat_jwt'
 
-async function fetchJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`)
-  if (!res.ok) throw new Error(`API ${path}: ${res.status} ${res.statusText}`)
+export function getStoredToken(): string | null {
+  return localStorage.getItem(JWT_STORAGE_KEY)
+}
+
+export function setStoredToken(token: string): void {
+  localStorage.setItem(JWT_STORAGE_KEY, token)
+}
+
+export function clearStoredToken(): void {
+  localStorage.removeItem(JWT_STORAGE_KEY)
+}
+
+// === API 基础路径 ===
+// 旧 API: /api (保持兼容)
+// 新 API: /api/v1 (V2.5 新端点)
+const API_BASE = import.meta.env.DEV ? '/api' : '/heat/api'
+const API_V1_BASE = `${API_BASE}/v1`
+
+// === 统一响应格式 (v1 API) ===
+export interface ApiResponse<T> {
+  ok: boolean
+  data: T
+  meta?: {
+    total?: number
+    page?: number
+    updated_at?: string
+    [key: string]: unknown
+  }
+}
+
+// === 请求拦截器 ===
+
+/** 构建带 JWT 的 headers */
+function authHeaders(extraHeaders?: Record<string, string>): HeadersInit {
+  const headers: Record<string, string> = { ...extraHeaders }
+  const token = getStoredToken()
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
+/** 处理 401 → 跳转登录 */
+function handle401(res: Response): void {
+  if (res.status === 401) {
+    clearStoredToken()
+    // 如果当前在 admin 页面，跳转到管理登录
+    if (window.location.hash.includes('/admin')) {
+      window.location.hash = '#/admin/clock'
+    }
+  }
+}
+
+// === 核心 fetch 函数 ===
+
+async function fetchJSON<T>(path: string, base = API_BASE): Promise<T> {
+  const res = await fetch(`${base}${path}`, {
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    handle401(res)
+    throw new Error(`API ${path}: ${res.status} ${res.statusText}`)
+  }
   return res.json()
 }
 
 /**
  * 安全 fetch — 如果 API 404，返回 null（用于 Track A 还没就绪的端点）
  */
-async function fetchJSONOrNull<T>(path: string): Promise<T | null> {
+async function fetchJSONOrNull<T>(path: string, base = API_BASE): Promise<T | null> {
   try {
-    const res = await fetch(`${API_BASE}${path}`)
-    if (!res.ok) return null
+    const res = await fetch(`${base}${path}`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) {
+      handle401(res)
+      return null
+    }
     return res.json()
   } catch {
     return null
   }
 }
+
+/**
+ * v1 API 统一响应解析 — 处理 {ok, data, meta} 格式
+ * 如果后端返回旧格式(直接数据)，自动兼容
+ */
+async function fetchV1<T>(path: string): Promise<{ data: T; meta?: ApiResponse<T>['meta'] }> {
+  const res = await fetch(`${API_V1_BASE}${path}`, {
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    handle401(res)
+    throw new Error(`API v1 ${path}: ${res.status} ${res.statusText}`)
+  }
+  const json = await res.json()
+
+  // 如果是标准 {ok, data} 格式
+  if (json && typeof json === 'object' && 'ok' in json && 'data' in json) {
+    if (!json.ok) throw new Error(json.error || `API v1 ${path}: request failed`)
+    return { data: json.data as T, meta: json.meta }
+  }
+
+  // 兼容旧格式: 直接返回数据
+  return { data: json as T }
+}
+
+async function fetchV1OrNull<T>(path: string): Promise<{ data: T; meta?: ApiResponse<T>['meta'] } | null> {
+  try {
+    return await fetchV1<T>(path)
+  } catch {
+    return null
+  }
+}
+
+async function postJSON<T>(path: string, body?: unknown, base = API_BASE): Promise<T> {
+  const res = await fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) {
+    handle401(res)
+    throw new Error(`API ${path}: ${res.status} ${res.statusText}`)
+  }
+  return res.json()
+}
+
+// === 旧 API (保持兼容) ===
 
 /** 获取仪表盘聚合数据 */
 export async function fetchDashboard(): Promise<DashboardData> {
@@ -110,7 +229,10 @@ export async function authLogin(username: string, password: string): Promise<Log
     const err = await res.json().catch(() => ({ detail: '登录失败' }))
     throw new Error(err.detail || `登录失败: ${res.status}`)
   }
-  return res.json()
+  const result: LoginResult = await res.json()
+  // 自动存储 token
+  setStoredToken(result.access_token)
+  return result
 }
 
 /** 获取当前用户信息 */
@@ -118,7 +240,10 @@ export async function authMe(token: string): Promise<AuthUser> {
   const res = await fetch(`${API_BASE}/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-  if (!res.ok) throw new Error('认证失败')
+  if (!res.ok) {
+    handle401(res)
+    throw new Error('认证失败')
+  }
   return res.json()
 }
 
@@ -135,16 +260,21 @@ export async function authOAuthCallback(code: string, state?: string): Promise<L
     body: JSON.stringify({ code, state }),
   })
   if (!res.ok) throw new Error('OAuth 认证失败')
-  return res.json()
+  const result: LoginResult = await res.json()
+  setStoredToken(result.access_token)
+  return result
 }
 
-// === Admin Clock API（需要 Bearer token） ===
+// === Admin Clock API（自动使用存储的 JWT） ===
 
 async function fetchJSONWithToken<T>(path: string, token: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-  if (!res.ok) throw new Error(`API ${path}: ${res.status} ${res.statusText}`)
+  if (!res.ok) {
+    handle401(res)
+    throw new Error(`API ${path}: ${res.status} ${res.statusText}`)
+  }
   return res.json()
 }
 
@@ -157,7 +287,10 @@ async function postJSONWithToken<T>(path: string, token: string, body?: unknown)
     },
     body: body ? JSON.stringify(body) : undefined,
   })
-  if (!res.ok) throw new Error(`API ${path}: ${res.status} ${res.statusText}`)
+  if (!res.ok) {
+    handle401(res)
+    throw new Error(`API ${path}: ${res.status} ${res.statusText}`)
+  }
   return res.json()
 }
 
@@ -188,3 +321,34 @@ export async function postAdminClockConfirm(
 ): Promise<unknown> {
   return postJSONWithToken('/admin/clock/confirm', token, data)
 }
+
+// === V1 新 API (V2.5) ===
+
+/** V1: 估值总览 */
+export async function fetchV1ValuationOverview() {
+  return fetchV1OrNull<unknown>('/valuation/overview')
+}
+
+/** V1: PE 历史 */
+export async function fetchV1PEHistory(symbol: string, months = 120) {
+  return fetchV1OrNull<unknown>(`/valuation/pe-history?symbol=${encodeURIComponent(symbol)}&months=${months}`)
+}
+
+/** V1: 定投计划列表 */
+export async function fetchV1DCAPlans() {
+  return fetchV1OrNull<unknown>('/dca/plans')
+}
+
+/** V1: 定投历史 */
+export async function fetchV1DCAHistory(planId?: string) {
+  const query = planId ? `?plan_id=${planId}` : ''
+  return fetchV1OrNull<unknown>(`/dca/history${query}`)
+}
+
+/** V1: 技术信号 */
+export async function fetchV1TechnicalSignal(symbol: string) {
+  return fetchV1OrNull<unknown>(`/signal/technical?symbol=${encodeURIComponent(symbol)}`)
+}
+
+// Re-export for convenience
+export { fetchV1, fetchV1OrNull, postJSON, API_BASE, API_V1_BASE }

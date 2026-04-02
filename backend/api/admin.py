@@ -11,6 +11,7 @@ from backend.api.auth import verify_admin_token
 from backend.collectors.kline import KlineCollector
 from backend.collectors.macro_cn import MacroCNCollector
 from backend.collectors.macro_us import MacroUSCollector
+from backend.api.response import ok, server_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -52,4 +53,4 @@ async def refresh_data(token: str = Depends(verify_admin_token)):
         results["macro_us"] = {"error": str(e)}
 
     logger.info("✅ 手动刷新完成")
-    return {"status": "ok", "results": results}
+    return ok({"status": "ok", "results": results})

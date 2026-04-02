@@ -25,11 +25,18 @@ def get_db() -> sqlite3.Connection:
 
 
 def init_db():
-    """初始化数据库，执行 schema.sql 建表"""
+    """初始化数据库，执行 schema.sql 建表 + V2.5 迁移"""
     conn = get_db()
     schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
     conn.executescript(schema_sql)
     conn.commit()
+
+    # V2.5 迁移: 新表 + 种子数据
+    from backend.db.migrations import run_migrations, seed_watchlist, seed_default_config
+    run_migrations()
+    seed_watchlist()
+    seed_default_config()
+
     print(f"✅ 数据库初始化完成: {DB_PATH}")
 
 

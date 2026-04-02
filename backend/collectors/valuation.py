@@ -17,6 +17,8 @@ import yfinance as yf
 
 from backend.config import WATCHLIST
 from backend.db.connection import fetchall, execute, get_db
+from backend.repos.valuation_repo import ValuationRepo
+from backend.repos.kline_repo import KlineRepo
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,8 @@ class ValuationCollector:
 
     def __init__(self, years: int = 10):
         self.years = years
+        self.valuation_repo = ValuationRepo()
+        self.kline_repo = KlineRepo()
 
     def fetch_us_stock_valuation(self, symbol: str, name: str) -> Optional[pd.DataFrame]:
         """用 yfinance 获取美股个股估值数据
@@ -49,7 +53,7 @@ class ValuationCollector:
                 price_to_book = info.get("priceToBook")
 
                 # 从 monthly_kline 表获取历史价格
-                rows = fetchall(
+                rows = self.kline_repo.raw_query(
                     """SELECT date, close FROM monthly_kline
                        WHERE symbol = ? ORDER BY date ASC""",
                     (symbol,),
@@ -116,7 +120,7 @@ class ValuationCollector:
         返回 DataFrame 但 pe_ttm/pb/ps 均为 None，
         后续 percentile 计算时会跳过 PE 但保留价格分位信息。
         """
-        rows = fetchall(
+        rows = self.kline_repo.raw_query(
             """SELECT date, close FROM monthly_kline
                WHERE symbol = ? ORDER BY date ASC""",
             (symbol,),
@@ -178,34 +182,23 @@ class ValuationCollector:
         return result
 
     def save_to_db(self, df: pd.DataFrame) -> int:
-        """将估值数据（含百分位）写入 valuation 表（UPSERT）"""
+        """将估值数据（含百分位）写入 valuation 表（通过 ValuationRepo UPSERT）"""
         if df is None or df.empty:
             return 0
 
-        conn = get_db()
-        inserted = 0
-
+        data_list = []
         for _, row in df.iterrows():
-            try:
-                conn.execute(
-                    """INSERT INTO valuation (symbol, date, pe_ttm, pb, ps, pe_percentile, pb_percentile)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)
-                       ON CONFLICT(symbol, date) DO UPDATE SET
-                           pe_ttm=excluded.pe_ttm, pb=excluded.pb, ps=excluded.ps,
-                           pe_percentile=excluded.pe_percentile, pb_percentile=excluded.pb_percentile
-                    """,
-                    (
-                        row["symbol"], row["date"],
-                        row.get("pe_ttm"), row.get("pb"), row.get("ps"),
-                        row.get("pe_percentile"), row.get("pb_percentile"),
-                    ),
-                )
-                inserted += 1
-            except Exception as e:
-                logger.error(f"写入失败 {row['symbol']} {row['date']}: {e}")
+            data_list.append({
+                "symbol": row["symbol"],
+                "date": row["date"],
+                "pe_ttm": row.get("pe_ttm") if pd.notna(row.get("pe_ttm")) else None,
+                "pb": row.get("pb") if pd.notna(row.get("pb")) else None,
+                "ps": row.get("ps") if pd.notna(row.get("ps")) else None,
+                "pe_percentile": row.get("pe_percentile") if pd.notna(row.get("pe_percentile")) else None,
+                "pb_percentile": row.get("pb_percentile") if pd.notna(row.get("pb_percentile")) else None,
+            })
 
-        conn.commit()
-        return inserted
+        return self.valuation_repo.upsert_many(data_list, conflict_keys=["symbol", "date"])
 
     def collect_all(self) -> dict:
         """采集 WATCHLIST 中所有标的的估值数据并回填

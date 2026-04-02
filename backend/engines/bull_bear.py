@@ -17,7 +17,7 @@ from typing import Optional
 import pandas as pd
 
 from backend.config import WATCHLIST
-from backend.db.connection import fetchall
+from backend.repos.kline_repo import KlineRepo
 
 logger = logging.getLogger(__name__)
 
@@ -106,9 +106,12 @@ class BullBearJudge:
     - 两年线 = 月线 MA24 (24个月移动平均)
     """
 
+    def __init__(self, kline_repo: KlineRepo | None = None):
+        self.kline_repo = kline_repo or KlineRepo()
+
     def _load_kline(self, symbol: str) -> pd.DataFrame:
-        """从 DB 加载月线K线数据"""
-        rows = fetchall(
+        """从 DB 加载月线K线数据（通过 KlineRepo）"""
+        rows = self.kline_repo.raw_query(
             """SELECT date, close, volume FROM monthly_kline
                WHERE symbol = ? ORDER BY date ASC""",
             (symbol,),

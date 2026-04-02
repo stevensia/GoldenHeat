@@ -20,7 +20,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 
 from backend.config import MERILL_CLOCK
-from backend.db.connection import fetchall
+from backend.repos.macro_repo import MacroRepo
 
 logger = logging.getLogger(__name__)
 
@@ -183,10 +183,11 @@ class MerillClock:
     4. 信贷领先指标: M2 增速 vs GDP 增速，预判经济方向
     """
 
-    def __init__(self):
+    def __init__(self, macro_repo: MacroRepo | None = None):
         self.gdp_window = MERILL_CLOCK["gdp_trend_window"]  # 4 季度
         self.cpi_window = MERILL_CLOCK["cpi_trend_window"]  # 6 月
         self.pmi_threshold = MERILL_CLOCK["pmi_threshold"]  # 50
+        self.macro_repo = macro_repo or MacroRepo()
 
     @staticmethod
     def calc_trend(series: pd.Series, window: int) -> tuple[str, float]:
@@ -222,7 +223,7 @@ class MerillClock:
         return (trend, float(slope))
 
     def _load_indicator(self, indicator: str, limit: int = 500) -> pd.Series:
-        """从数据库加载指标数据（全量加载，按日期升序）
+        """从数据库加载指标数据（通过 MacroRepo）
 
         Args:
             indicator: 指标名 (如 'cn_cpi', 'cn_gdp')
@@ -231,19 +232,7 @@ class MerillClock:
         Returns:
             pd.Series，index 为日期字符串
         """
-        rows = fetchall(
-            """SELECT date, value FROM macro_data
-               WHERE indicator = ?
-               ORDER BY date ASC
-               LIMIT ?""",
-            (indicator, limit),
-        )
-        if not rows:
-            return pd.Series(dtype=float)
-
-        dates = [row["date"] for row in rows]
-        values = [row["value"] for row in rows]
-        return pd.Series(values, index=dates, dtype=float)
+        return self.macro_repo.get_series(indicator, limit=limit)
 
     def judge_phase(self, market: str = "cn", as_of: str | None = None) -> PhaseResult:
         """判断当前美林时钟阶段

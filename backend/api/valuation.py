@@ -7,6 +7,7 @@ GET /api/valuation/history?symbol=000001.SS&months=120
 import logging
 from fastapi import APIRouter, Query
 from backend.db.connection import fetchall
+from backend.api.response import ok, server_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -45,8 +46,8 @@ async def get_valuation_history(
         ]
         data.reverse()  # 升序
 
-        return {"symbol": symbol, "months": months, "count": len(data), "data": data}
+        return ok({"symbol": symbol, "months": months, "count": len(data), "data": data})
 
     except Exception as e:
         logger.error(f"估值历史查询失败: {e}")
-        return {"error": str(e)}
+        return server_error(f"估值历史查询失败: {e}")

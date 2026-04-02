@@ -21,7 +21,8 @@ import numpy as np
 import pandas as pd
 
 from backend.config import WATCHLIST
-from backend.db.connection import fetchall
+from backend.repos.kline_repo import KlineRepo
+from backend.repos.valuation_repo import ValuationRepo
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +74,13 @@ class MarketTemperature:
     MA_WEIGHT = 0.35
     VOL_WEIGHT = 0.25
 
+    def __init__(self, kline_repo: KlineRepo | None = None, valuation_repo: ValuationRepo | None = None):
+        self.kline_repo = kline_repo or KlineRepo()
+        self.valuation_repo = valuation_repo or ValuationRepo()
+
     def _load_kline(self, symbol: str) -> pd.DataFrame:
-        """加载月线K线"""
-        rows = fetchall(
+        """加载月线K线（通过 KlineRepo）"""
+        rows = self.kline_repo.raw_query(
             """SELECT date, close, volume FROM monthly_kline
                WHERE symbol = ? ORDER BY date ASC""",
             (symbol,),
@@ -101,7 +106,7 @@ class MarketTemperature:
         # 优先从 valuation 表获取真实 PE 百分位
         if symbol:
             try:
-                rows = fetchall(
+                rows = self.valuation_repo.raw_query(
                     """SELECT pe_percentile FROM valuation
                        WHERE symbol = ? AND pe_percentile IS NOT NULL
                        ORDER BY date DESC LIMIT 1""",

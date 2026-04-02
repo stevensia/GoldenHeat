@@ -9,6 +9,7 @@ from fastapi import APIRouter
 
 from backend.engines.bull_bear import BullBearJudge
 from backend.engines.temperature import MarketTemperature
+from backend.api.response import ok, server_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -31,11 +32,11 @@ async def get_bull_bear():
         temp_engine = MarketTemperature()
         market_avg = temp_engine.calc_market_avg()
 
-        return {
+        return ok({
             "count": len(results),
             "market_temperature": market_avg.to_dict() if market_avg else None,
             "markets": [r.to_dict() for r in results],
-        }
+        })
     except Exception as e:
         logger.error(f"牛熊判断失败: {e}")
-        return {"error": str(e)}
+        return server_error(f"牛熊判断失败: {e}")

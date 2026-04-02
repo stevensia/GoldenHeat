@@ -7,6 +7,7 @@ GET /api/kline/history?symbol=000001.SS&months=120
 import logging
 from fastapi import APIRouter, Query
 from backend.db.connection import fetchall
+from backend.api.response import ok, server_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -36,7 +37,7 @@ async def get_kline_history(
         )
 
         if not rows:
-            return {"symbol": symbol, "months": months, "count": 0, "data": []}
+            return ok({"symbol": symbol, "months": months, "count": 0, "data": []})
 
         # 转为 list[dict]
         all_data = [
@@ -69,8 +70,8 @@ async def get_kline_history(
         # 只返回最近 months 条
         result_data = all_data[-months:] if len(all_data) > months else all_data
 
-        return {"symbol": symbol, "months": months, "count": len(result_data), "data": result_data}
+        return ok({"symbol": symbol, "months": months, "count": len(result_data), "data": result_data})
 
     except Exception as e:
         logger.error(f"K线历史查询失败: {e}")
-        return {"error": str(e)}
+        return server_error(f"K线历史查询失败: {e}")

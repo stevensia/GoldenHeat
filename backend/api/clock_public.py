@@ -10,6 +10,7 @@ from fastapi import APIRouter
 
 from backend.db.connection import fetchone
 from backend.engines.merill_clock import MerillClock, PHASE_ALLOCATION, Phase, calc_position
+from backend.api.response import ok, server_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/clock")
@@ -91,4 +92,4 @@ async def clock_summary():
             logger.warning(f"获取 {market} 时钟失败: {e}")
             result[market] = None
 
-    return result
+    return ok(result)

@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.auth import verify_admin_token
 from backend.engines.clock_assessor import ClockAssessor
+from backend.api.response import ok, error, server_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin/clock")
@@ -45,8 +46,8 @@ async def get_latest(
     assessor = ClockAssessor()
     result = assessor.get_latest_assessment(market)
     if not result:
-        return {"error": f"暂无 {market} 的评估记录，请先运行 /assess"}
-    return result
+        return error("NO_ASSESSMENT", f"暂无 {market} 的评估记录，请先运行 /assess", status=404)
+    return ok(result)
 
 
 @router.get("/history")
@@ -57,7 +58,7 @@ async def get_history(
 ):
     """评估历史"""
     assessor = ClockAssessor()
-    return assessor.get_assessment_history(market, limit)
+    return ok(assessor.get_assessment_history(market, limit))
 
 
 @router.post("/assess")
@@ -71,7 +72,7 @@ async def run_assessment(
 
     assessor = ClockAssessor()
     result = await assessor.run_assessment(market=market, trigger_type=trigger_type)
-    return result
+    return ok(result)
 
 
 @router.post("/confirm")
@@ -82,7 +83,7 @@ async def confirm_human(
     """人工确认/修正"""
     valid_phases = {"recovery", "overheat", "stagflation", "recession"}
     if body.phase not in valid_phases:
-        return {"error": f"无效 phase: {body.phase}，可选: {valid_phases}"}
+        return error("INVALID_PHASE", f"无效 phase: {body.phase}，可选: {valid_phases}")
 
     assessor = ClockAssessor()
     try:
@@ -93,9 +94,9 @@ async def confirm_human(
             confidence=body.confidence,
             notes=body.notes,
         )
-        return result
+        return ok(result)
     except ValueError as e:
-        return {"error": str(e)}
+        return error("CONFIRM_FAILED", str(e))
 
 
 @router.get("/indicators")
@@ -135,11 +136,11 @@ async def get_indicators(
                 "source": source,
             })
 
-    return result
+    return ok(result)
 
 
 @router.get("/llm-status")
 async def llm_status(_: str = Depends(verify_admin_token)):
     """LLM 配置状态"""
     from backend.llm import get_llm_status
-    return get_llm_status()
+    return ok(get_llm_status())

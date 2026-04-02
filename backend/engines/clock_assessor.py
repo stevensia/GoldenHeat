@@ -14,6 +14,8 @@ from datetime import datetime
 from typing import Optional
 
 from backend.db.connection import execute, fetchall, fetchone
+from backend.repos.clock_repo import ClockRepo, IndicatorHistoryRepo
+from backend.repos.macro_repo import MacroRepo
 from backend.engines.merill_clock import MerillClock, Phase, calc_position, PHASE_CENTERS
 from backend.engines.ai_assessor import assess_with_ai
 
@@ -106,8 +108,11 @@ def _weighted_confidence(
 class ClockAssessor:
     """三方加权评估器"""
 
-    def __init__(self):
+    def __init__(self, clock_repo: ClockRepo | None = None, macro_repo: MacroRepo | None = None):
         self.clock = MerillClock()
+        self.clock_repo = clock_repo or ClockRepo()
+        self.macro_repo = macro_repo or MacroRepo()
+        self.indicator_repo = IndicatorHistoryRepo()
 
     async def run_assessment(
         self, market: str = "cn", trigger_type: str = "manual"

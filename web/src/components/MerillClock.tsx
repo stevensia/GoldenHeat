@@ -52,10 +52,20 @@ function arc(cx: number, cy: number, r: number, s: number, e: number) {
   return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 0 0 ${end.x} ${end.y} Z`
 }
 
-/** 将 0-12 点位转为 SVG 角度（0=顶部，顺时针） */
+/** 将 0-12 点位转为 SVG 角度
+ * 
+ * 象限布局:
+ *   复苏 = 左上 (SVG 270°-360°, center 315°) → position 10.5-1.5 (center 0/12)
+ *   过热 = 右上 (SVG 0°-90°, center 45°) → position 1.5-4.5 (center 3)
+ *   滞胀 = 右下 (SVG 90°-180°, center 135°) → position 4.5-7.5 (center 6)
+ *   衰退 = 左下 (SVG 180°-270°, center 225°) → position 7.5-10.5 (center 9)
+ *
+ * Mapping: position 0 → 315° (复苏中心), +1 → +30°, 顺时针
+ */
 function positionToDeg(position: number): number {
-  // 0/12 = 顶部(0°), 3 = 右侧(90°), 6 = 底部(180°), 9 = 左侧(270°)
-  return (position / 12) * 360
+  // position 0 = 315° (复苏中心, 左上)
+  // 每个 position unit = 30° (360/12)
+  return (315 + position * 30) % 360
 }
 
 export default function MerillClock({ data, macroDetails }: Props) {

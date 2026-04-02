@@ -111,6 +111,8 @@ class PhaseResult:
         base = self.to_dict()
         base["position"] = calc_position(self.phase, self.confidence, self.gdp_slope, self.cpi_slope)
         base["algo_details"] = json.dumps({
+            "gdp_trend": self.gdp_trend,
+            "cpi_trend": self.cpi_trend,
             "gdp_slope": round(self.gdp_slope, 4),
             "cpi_slope": round(self.cpi_slope, 4),
             "pmi_value": self.pmi_value,
@@ -118,6 +120,7 @@ class PhaseResult:
             "m2_growth": self.m2_growth,
             "gdp_growth": self.gdp_growth,
             "credit_signal": self.credit_signal,
+            "transition_warning": self.transition_warning,
         }, ensure_ascii=False)
         return base
 

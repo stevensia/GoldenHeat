@@ -10,9 +10,14 @@
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Optional
 
 import httpx
+from dotenv import load_dotenv
+
+# 确保 .env 已加载
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 logger = logging.getLogger(__name__)
 
@@ -81,16 +86,18 @@ async def _call_local(
     max_tokens: Optional[int] = None,
 ) -> dict:
     """调用本地 copilot-proxy"""
+    payload: dict = {
+        "model": model or LOCAL_MODEL,
+        "messages": messages,
+        "max_tokens": max_tokens or LLM_MAX_TOKENS,
+    }
+    
     async with httpx.AsyncClient(timeout=LLM_TIMEOUT) as client:
+        # 先不带 temperature 发（有些模型不支持）
         resp = await client.post(
             f"{LOCAL_BASE_URL}/chat/completions",
             headers={"Authorization": f"Bearer {LOCAL_API_KEY}"},
-            json={
-                "model": model or LOCAL_MODEL,
-                "messages": messages,
-                "temperature": temperature if temperature is not None else LLM_TEMPERATURE,
-                "max_tokens": max_tokens or LLM_MAX_TOKENS,
-            },
+            json=payload,
         )
         resp.raise_for_status()
         return resp.json()
@@ -181,8 +188,9 @@ def extract_content(response: Optional[dict]) -> Optional[str]:
     if not response:
         return None
     try:
-        return response["choices"][0]["message"]["content"].strip()
-    except (KeyError, IndexError):
+        content = response["choices"][0]["message"]["content"]
+        return content.strip() if content else None
+    except (KeyError, IndexError, TypeError):
         return None
 
 

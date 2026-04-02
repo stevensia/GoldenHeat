@@ -247,6 +247,78 @@ dependencies = [
 
 ---
 
+## 部署规范
+
+### 前端部署
+- **域名路径**: `lishengms.com/heat`
+- **访问权限**: 公开访问，无需登录
+- **前端构建**: Vite build → 静态文件部署到 `/var/www/lishengms/heat/`
+
+### API 安全防护
+
+#### Rate Limiting（防爬/防滥用）
+- 公开只读 API（dashboard/signals/merill/bullbear）: 60 req/min per IP
+- 写入 API（refresh/admin）: 10 req/min per IP
+- 使用 FastAPI middleware 或 slowapi 实现
+
+#### 认证与授权
+- **只读 API**: 公开，无需认证
+- **写入 API**（`POST /api/refresh`, `/api/admin/*`）: 需要 `Authorization: Bearer <TOKEN>` 保护
+- Token 在 `.env` 中配置 `ADMIN_API_TOKEN`
+
+#### CORS
+- 限制为 `https://lishengms.com` 和 `http://localhost:*`（开发用）
+- 禁止 `*` 通配
+
+#### 数据隐私
+- **禁止暴露**: 实际持仓金额、具体资产数量、个人账户信息
+- **允许展示**: 配置比例（%）、市场温度（0-100）、信号评级、偏离度（%）、美林时钟阶段
+- 所有 API 返回数据需经 sanitize 层过滤
+
+### Nginx 配置
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name lishengms.com;
+
+    # Security Headers
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+    # 前端静态文件
+    location /heat {
+        alias /var/www/lishengms/heat;
+        try_files $uri $uri/ /heat/index.html;
+    }
+
+    # API 反向代理
+    location /heat/api {
+        proxy_pass http://127.0.0.1:3009;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Rate limiting zone
+        limit_req zone=goldenheat burst=20 nodelay;
+    }
+}
+```
+
+### 后端进程管理
+- **PM2 进程名**: `goldenheat-api`
+- **端口**: 3009
+- **启动命令**: `cd /opt/GoldenHeat/backend && uvicorn main:app --host 127.0.0.1 --port 3009`
+- **定时采集**: APScheduler 内置（每日 08:00 K线 + 每月宏观数据）
+
+---
+
 ## 风险与注意事项
 
 1. **数据源可靠性**：akshare/yfinance 免费 API 可能限流或变更，需要做错误重试 + 多源备份

@@ -2,8 +2,8 @@
 
 import type { DashboardData } from './types'
 
-// API 基础路径：开发时通过 vite proxy，生产环境同源
-const API_BASE = '/api'
+// API 基础路径：生产环境 /heat/api，开发环境 /api（vite proxy）
+const API_BASE = import.meta.env.DEV ? '/api' : '/heat/api'
 
 async function fetchJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`)

@@ -1,9 +1,11 @@
-/* Dashboard 主页面 — 组装所有组件
+/* Dashboard v2 — 全新设计
  *
- * 布局规则:
- * - Navbar 和 main 共用同一个 max-w + px, 确保左右完全对齐
- * - 各 section 用 SectionHeader 做视觉分隔，不额外包 SectionBox 边框
- * - 卡片组件自带背景边框，不再嵌套容器
+ * 设计语言:
+ * - 参考 heatmap.html: #0a0a14 背景 · 渐变强调 · 紧凑数据密度 · 统计卡片
+ * - 参考 clock-web: 圆盘 · 毛玻璃 · 渐变标题 · 紧凑间距
+ * - 去掉冗余包裹层，section 用简洁分隔
+ * - 统计卡片顶栏 (overview stats)
+ * - 一致的 max-w-[1200px] 和 px
  */
 
 import { useState } from 'react'
@@ -16,53 +18,24 @@ import DeviationBar from '../components/DeviationBar'
 import SignalTable from '../components/SignalTable'
 import BullBearChart from '../components/BullBearChart'
 
-// 标的 → 市场映射
 const MARKET_MAP: Record<string, MarketTab> = {
-  '000001.SS': 'cn',
-  '^GSPC': 'us',
-  '^HSI': 'hk',
-  'NVDA': 'us',
-  'TSLA': 'us',
-  'MSFT': 'us',
-  '0700.HK': 'hk',
-  '9988.HK': 'hk',
-  'BTC-USD': 'crypto',
+  '000001.SS': 'cn', '^GSPC': 'us', '^HSI': 'hk',
+  'NVDA': 'us', 'TSLA': 'us', 'MSFT': 'us',
+  '0700.HK': 'hk', '9988.HK': 'hk', 'BTC-USD': 'crypto',
 }
 
-function getMarket(symbol: string): MarketTab {
-  if (MARKET_MAP[symbol]) return MARKET_MAP[symbol]
-  if (symbol.endsWith('.SS') || symbol.endsWith('.SZ')) return 'cn'
-  if (symbol.endsWith('.HK')) return 'hk'
-  if (symbol.includes('USD') || symbol.includes('BTC') || symbol.includes('ETH')) return 'crypto'
+function getMarket(sym: string): MarketTab {
+  if (MARKET_MAP[sym]) return MARKET_MAP[sym]
+  if (sym.endsWith('.SS') || sym.endsWith('.SZ')) return 'cn'
+  if (sym.endsWith('.HK')) return 'hk'
+  if (sym.includes('USD') || sym.includes('BTC') || sym.includes('ETH')) return 'crypto'
   return 'us'
 }
 
-/* ── 统一的内容宽度 class（跟 Navbar 保持一致） ── */
-const CONTAINER = 'max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-10'
-
-/* ── Section 标题组件 ── */
-function SectionHeader({ icon, title, subtitle, accentColor = '#00d4ff' }: {
-  icon: string
-  title: string
-  subtitle?: string
-  accentColor?: string
-}) {
-  return (
-    <div className="flex items-center gap-3 mb-5">
-      <div className="w-1 h-7 rounded-full shrink-0" style={{ background: `linear-gradient(to bottom, ${accentColor}, ${accentColor}33)` }} />
-      <div>
-        <h2 className="text-base sm:text-lg font-bold text-[#e0e0e0] tracking-tight flex items-center gap-2">
-          <span>{icon}</span>
-          {title}
-        </h2>
-        {subtitle && <p className="text-[10px] text-[#555] mt-0.5">{subtitle}</p>}
-      </div>
-    </div>
-  )
-}
+const W = 'max-w-[1200px] mx-auto px-5 sm:px-8'
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<MarketTab>('all')
+  const [tab, setTab] = useState<MarketTab>('all')
   const { data, isLoading, error, dataUpdatedAt, refetch, isFetching } = useQuery({
     queryKey: ['dashboard'],
     queryFn: fetchDashboard,
@@ -70,242 +43,172 @@ export default function Dashboard() {
     staleTime: 2 * 60 * 1000,
   })
 
-  if (isLoading) return (
-    <>
-      <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
-      <LoadingScreen />
-    </>
-  )
-  if (error) return (
-    <>
-      <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
-      <ErrorScreen error={error} onRetry={() => refetch()} />
-    </>
-  )
+  if (isLoading) return <><Navbar activeTab={tab} onTabChange={setTab} /><Loading /></>
+  if (error) return <><Navbar activeTab={tab} onTabChange={setTab} /><Err error={error} onRetry={() => refetch()} /></>
   if (!data) return null
 
-  const updatedAt = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleString('zh-CN') : '-'
+  const updated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleString('zh-CN') : '-'
+  const sigs = tab === 'all' ? data.signals : data.signals.filter(s => getMarket(s.symbol) === tab)
+  const bb = tab === 'all' ? data.bull_bear : data.bull_bear.filter(s => getMarket(s.symbol) === tab)
+  const temps = tab === 'all' ? data.market_temperature.details : data.market_temperature.details.filter(s => getMarket(s.symbol) === tab)
 
-  // 市场过滤
-  const filteredSignals = activeTab === 'all'
-    ? data.signals
-    : data.signals.filter(s => getMarket(s.symbol) === activeTab)
-
-  const filteredBullBear = activeTab === 'all'
-    ? data.bull_bear
-    : data.bull_bear.filter(s => getMarket(s.symbol) === activeTab)
-
-  const filteredTemp = activeTab === 'all'
-    ? data.market_temperature.details
-    : data.market_temperature.details.filter(s => getMarket(s.symbol) === activeTab)
+  // 统计
+  const bullCount = bb.filter(b => b.phase === 'bull' || b.phase === 'bull_early').length
+  const bearCount = bb.filter(b => b.phase === 'bear' || b.phase === 'bear_early').length
+  const avgTemp = temps.length > 0 ? temps.reduce((a, t) => a + t.temperature, 0) / temps.length : 0
 
   return (
-    <div className="min-h-screen bg-[#0a0a14]">
-      <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
+    <div className="min-h-screen" style={{ background: '#0a0a14' }}>
+      <Navbar activeTab={tab} onTabChange={setTab} />
 
-      <main className={`${CONTAINER} py-6 sm:py-8`}>
+      <main className={`${W} py-6`}>
 
-        {/* 页面头 — 市场标题 + 更新时间 */}
-        <div className="flex items-center justify-between mb-8">
+        {/* ── 页面头 ── */}
+        <div className="flex items-end justify-between mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#e0e0e0] tracking-tight">
-              {activeTab === 'all' ? '市场总览' :
-                activeTab === 'us' ? '🇺🇸 美股市场' :
-                activeTab === 'cn' ? '🇨🇳 A股市场' :
-                activeTab === 'hk' ? '🇭🇰 港股市场' :
-                '₿ 加密市场'}
+            <h1 className="text-xl sm:text-2xl font-bold text-[#e0e0e0] tracking-tight">
+              {tab === 'all' ? '市场总览' : tab === 'us' ? '美股' : tab === 'cn' ? 'A股' : tab === 'hk' ? '港股' : '加密'}
             </h1>
-            <p className="text-xs text-[#555] mt-1.5">
-              AI 中长周期投资决策系统 · 只做月线级别操作
-            </p>
+            <p className="text-[11px] text-[#444] mt-1">AI 中长周期投资决策 · 月线级别</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="text-right hidden sm:block">
-              <div className="text-[10px] text-[#444]">数据更新</div>
-              <div className="text-xs text-[#666]">{updatedAt}</div>
-            </div>
-            <button
-              onClick={() => refetch()}
-              disabled={isFetching}
-              className="group px-4 py-2 text-xs font-medium rounded-lg transition-all duration-200 disabled:opacity-50"
-              style={{
-                background: 'rgba(0,212,255,0.08)',
-                border: '1px solid rgba(0,212,255,0.2)',
-                color: '#00d4ff',
-              }}
-            >
-              {isFetching ? (
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 border border-[#00d4ff] border-t-transparent rounded-full animate-spin" />
-                  刷新中
-                </span>
-              ) : (
-                <span className="flex items-center gap-1.5 group-hover:gap-2 transition-all">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  刷新
-                </span>
-              )}
+            <span className="text-[10px] text-[#444] hidden sm:block">{updated}</span>
+            <button onClick={() => refetch()} disabled={isFetching}
+              className="px-3 py-1.5 text-[11px] font-medium rounded-md transition-all disabled:opacity-40"
+              style={{ background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.15)', color: '#00d4ff' }}>
+              {isFetching ? '⟳' : '刷新'}
             </button>
           </div>
         </div>
 
-        <div className="space-y-10">
-
-          {/* ═══ Section 1: 宏观研判 ═══ */}
-          <section>
-            <SectionHeader
-              icon="🧭"
-              title="宏观研判"
-              subtitle="美林时钟 · 市场温度 · 资产配置"
-              accentColor="#00d4ff"
-            />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <MerillClock data={data.merill_clock} />
-              {data.market_temperature.average && (
-                <TemperatureGauge data={data.market_temperature.average} />
-              )}
-              <DeviationBar data={data.merill_clock} />
-            </div>
-          </section>
-
-          {/* ═══ Section 1.5: 各标的温度 ═══ */}
-          {filteredTemp.length > 0 && (
-            <section>
-              <SectionHeader
-                icon="🌡️"
-                title="标的温度"
-                subtitle="各关注标的的多维温度评估"
-                accentColor="#eab308"
-              />
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                {filteredTemp.map(t => (
-                  <TemperatureCard key={t.symbol} data={t} />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* ═══ Section 2: 月线信号 ═══ */}
-          {filteredSignals.length > 0 && (
-            <section>
-              <SectionHeader
-                icon="📊"
-                title="月线信号"
-                subtitle="均线系统 · 回调位置 · 量能确认 · 综合评分"
-                accentColor="#22c55e"
-              />
-              <SignalTable data={filteredSignals} />
-            </section>
-          )}
-
-          {/* ═══ Section 3: 牛熊分割线 ═══ */}
-          {filteredBullBear.length > 0 && (
-            <section>
-              <SectionHeader
-                icon="📈"
-                title="牛熊分割线"
-                subtitle="年线 · 两年线 · 大级别仓位判断"
-                accentColor="#7c3aed"
-              />
-              <BullBearChart data={filteredBullBear} />
-            </section>
-          )}
-
-          {/* 空状态 */}
-          {filteredSignals.length === 0 && filteredBullBear.length === 0 && activeTab !== 'all' && (
-            <section className="text-center py-20">
-              <div className="text-4xl mb-3">📭</div>
-              <p className="text-[#888]">该市场暂无关注标的</p>
-              <p className="text-xs text-[#555] mt-1">可在后台配置 watchlist 添加</p>
-            </section>
-          )}
+        {/* ── 统计概览卡片 (参考 heatmap stats grid) ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+          <StatCard label="经济周期" value={data.merill_clock.phase_label} sub={`置信 ${Math.round(data.merill_clock.confidence * 100)}%`} color={
+            data.merill_clock.phase === 'recovery' ? '#22c55e' : data.merill_clock.phase === 'overheat' ? '#ef4444' :
+            data.merill_clock.phase === 'stagflation' ? '#eab308' : '#3b82f6'
+          } />
+          <StatCard label="市场温度" value={`${avgTemp.toFixed(0)}°`} sub={data.market_temperature.average?.level ?? ''} color={
+            avgTemp < 30 ? '#3b82f6' : avgTemp < 60 ? '#eab308' : '#ef4444'
+          } />
+          <StatCard label="牛市标的" value={`${bullCount}`} sub={`/ ${bb.length} 个标的`} color="#22c55e" />
+          <StatCard label="熊市标的" value={`${bearCount}`} sub={`/ ${bb.length} 个标的`} color="#ef4444" />
         </div>
 
-        {/* Footer */}
-        <footer className="text-center text-xs text-[#444] py-8 mt-12">
-          <div className="h-px mb-6 mx-auto max-w-[200px]"
-            style={{ background: 'linear-gradient(to right, transparent, #1e1e3a, transparent)' }} />
-          <div className="flex items-center justify-center gap-2 text-[#555]">
-            <span style={{
-              background: 'linear-gradient(90deg, #00d4ff, #7c3aed)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              fontWeight: 600,
-            }}>GoldenHeat</span>
-            <span className="text-[#333]">·</span>
-            <span>数据更新 {updatedAt}</span>
+        {/* ── Section: 宏观研判 ── */}
+        <Section title="宏观研判" sub="美林时钟 · 市场温度 · 资产配置" color="#00d4ff" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-10">
+          <MerillClock data={data.merill_clock} />
+          {data.market_temperature.average && <TemperatureGauge data={data.market_temperature.average} />}
+          <DeviationBar data={data.merill_clock} />
+        </div>
+
+        {/* ── Section: 标的温度 ── */}
+        {temps.length > 0 && (
+          <>
+            <Section title="标的温度" sub="多维温度评估" color="#eab308" />
+            <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2 mb-10">
+              {temps.map(t => <TempChip key={t.symbol} d={t} />)}
+            </div>
+          </>
+        )}
+
+        {/* ── Section: 月线信号 ── */}
+        {sigs.length > 0 && (
+          <>
+            <Section title="月线信号" sub="均线 · 回调 · 量能 · 评分" color="#22c55e" />
+            <div className="mb-10">
+              <SignalTable data={sigs} />
+            </div>
+          </>
+        )}
+
+        {/* ── Section: 牛熊分割线 ── */}
+        {bb.length > 0 && (
+          <>
+            <Section title="牛熊分割线" sub="年线 · 两年线 · 仓位" color="#7c3aed" />
+            <div className="mb-10">
+              <BullBearChart data={bb} />
+            </div>
+          </>
+        )}
+
+        {/* 空 */}
+        {sigs.length === 0 && bb.length === 0 && tab !== 'all' && (
+          <div className="text-center py-20 text-[#555]">
+            <div className="text-3xl mb-2">📭</div>
+            <div className="text-sm">该市场暂无关注标的</div>
           </div>
-          <div className="text-[#333] mt-2">仅供参考，不构成投资建议</div>
+        )}
+
+        {/* Footer */}
+        <footer className="text-center py-8 mt-4">
+          <div className="h-px mx-auto w-24 mb-4" style={{ background: 'linear-gradient(90deg, transparent, #222, transparent)' }} />
+          <div className="text-[10px] text-[#333]">
+            <span className="gradient-text font-semibold">GoldenHeat</span>
+            <span className="mx-2">·</span>
+            {updated}
+            <span className="mx-2">·</span>
+            仅供参考
+          </div>
         </footer>
       </main>
     </div>
   )
 }
 
-/* ── 温度小卡片 ── */
-function TemperatureCard({ data }: { data: import('../api/types').TemperatureData }) {
-  const temp = Math.max(0, Math.min(100, data.temperature))
-  const getColor = (t: number) => {
-    if (t < 20) return '#3b82f6'
-    if (t < 40) return '#60a5fa'
-    if (t < 60) return '#eab308'
-    if (t < 80) return '#f97316'
-    return '#ef4444'
-  }
-  const color = getColor(temp)
-
+/* ── 统计卡片 (参考 heatmap .stat) ── */
+function StatCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (
-    <div className="bg-[#111122] border border-[#1e1e3a] rounded-xl p-4 hover:-translate-y-0.5 transition-all duration-200">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-[#888] font-medium">{data.name}</span>
-        <span className="text-xs">{data.emoji}</span>
-      </div>
-      <div className="text-2xl font-bold" style={{ color }}>{temp.toFixed(0)}°</div>
-      <div className="relative h-1 rounded-full mt-2 overflow-hidden"
-        style={{ background: 'linear-gradient(to right, #3b82f6, #eab308, #ef4444)' }} />
-      <div className="relative h-0">
-        <div className="absolute -top-[5px] w-2 h-2 rounded-full border border-white/50 shadow-sm"
-          style={{ left: `calc(${temp}% - 4px)`, background: color }} />
-      </div>
-      <div className="text-[10px] text-[#666] mt-3">{data.level}</div>
+    <div className="rounded-xl p-4 text-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="text-2xl sm:text-3xl font-extrabold tabular-nums" style={{ color }}>{value}</div>
+      <div className="text-[10px] text-[#555] mt-1">{label}</div>
+      <div className="text-[9px] text-[#444] mt-0.5">{sub}</div>
     </div>
   )
 }
 
-function LoadingScreen() {
+/* ── Section 分隔 ── */
+function Section({ title, sub, color }: { title: string; sub: string; color: string }) {
+  return (
+    <div className="flex items-center gap-2.5 mb-4 mt-2">
+      <div className="w-0.5 h-5 rounded-full" style={{ background: color }} />
+      <div>
+        <span className="text-[13px] font-bold text-[#e0e0e0]">{title}</span>
+        <span className="text-[10px] text-[#444] ml-2">{sub}</span>
+      </div>
+    </div>
+  )
+}
+
+/* ── 温度小格子 (参考 heatmap zone) ── */
+function TempChip({ d }: { d: import('../api/types').TemperatureData }) {
+  const t = Math.max(0, Math.min(100, d.temperature))
+  const c = t < 20 ? '#3b82f6' : t < 40 ? '#60a5fa' : t < 60 ? '#eab308' : t < 80 ? '#f97316' : '#ef4444'
+  return (
+    <div className="rounded-lg p-3 text-center transition-all hover:-translate-y-0.5"
+      style={{ background: `${c}08`, border: `1px solid ${c}20` }}>
+      <div className="text-xl font-extrabold tabular-nums" style={{ color: c }}>{t.toFixed(0)}°</div>
+      <div className="text-[9px] text-[#777] mt-1 truncate">{d.name}</div>
+    </div>
+  )
+}
+
+function Loading() {
+  return (
+    <div className="min-h-[80vh] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-[#00d4ff] border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+}
+
+function Err({ error, onRetry }: { error: Error; onRetry: () => void }) {
   return (
     <div className="min-h-[80vh] flex items-center justify-center">
       <div className="text-center">
-        <div className="relative">
-          <div className="w-12 h-12 border-2 border-[#1e1e3a] rounded-full" />
-          <div className="w-12 h-12 border-2 border-[#00d4ff] border-t-transparent rounded-full animate-spin absolute top-0" />
-        </div>
-        <p className="text-sm text-[#888] mt-4">加载中...</p>
-      </div>
-    </div>
-  )
-}
-
-function ErrorScreen({ error, onRetry }: { error: Error; onRetry: () => void }) {
-  return (
-    <div className="min-h-[80vh] flex items-center justify-center">
-      <div className="text-center max-w-sm">
-        <div className="text-4xl mb-3">⚠️</div>
-        <h2 className="text-lg font-medium text-[#e0e0e0] mb-2">数据加载失败</h2>
-        <p className="text-sm text-[#888] mb-4">{error.message}</p>
-        <button
-          onClick={onRetry}
-          className="px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200"
-          style={{
-            background: 'rgba(0,212,255,0.1)',
-            border: '1px solid rgba(0,212,255,0.3)',
-            color: '#00d4ff',
-          }}
-        >
+        <div className="text-3xl mb-2">⚠️</div>
+        <div className="text-sm text-[#888] mb-3">{error.message}</div>
+        <button onClick={onRetry} className="px-4 py-2 text-xs rounded-lg"
+          style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff' }}>
           重试
         </button>
       </div>

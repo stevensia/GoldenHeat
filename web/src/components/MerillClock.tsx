@@ -1,137 +1,84 @@
-/* 美林时钟四象限圆盘 — SVG 实现
+/* 美林时钟 v2 — 紧凑圆盘 + 数据面板
  *
- * 四象限: 复苏(右上) / 过热(左上) / 滞胀(左下) / 衰退(右下)
- * 当前阶段高亮，中心显示置信度
+ * 参考 clock-web 的圆盘 + heatmap 的数据密度
+ * 左侧圆盘，右侧指标列表
  */
 
 import type { MerillClockData } from '../api/types'
 
-interface Props {
-  data: MerillClockData
+interface Props { data: MerillClockData }
+
+const PHASES = [
+  { phase: 'recovery',    label: '复苏', asset: '股票', sa: 270, ea: 360, lx: 155, ly: 78,  ax: 155, ay: 95 },
+  { phase: 'overheat',    label: '过热', asset: '商品', sa: 180, ea: 270, lx: 55,  ly: 78,  ax: 55,  ay: 95 },
+  { phase: 'stagflation', label: '滞胀', asset: '现金', sa: 90,  ea: 180, lx: 55,  ly: 152, ax: 55,  ay: 169 },
+  { phase: 'recession',   label: '衰退', asset: '债券', sa: 0,   ea: 90,  lx: 155, ly: 152, ax: 155, ay: 169 },
+] as const
+
+const COLORS: Record<string, string> = {
+  recovery: '#22c55e', overheat: '#ef4444',
+  stagflation: '#eab308', recession: '#3b82f6',
 }
 
-interface QuadrantDef {
-  phase: MerillClockData['phase']
-  label: string
-  asset: string
-  // SVG path for each quadrant (pie slice)
-  startAngle: number
-  endAngle: number
-  labelX: number
-  labelY: number
-  assetX: number
-  assetY: number
-}
-
-const QUADRANTS: QuadrantDef[] = [
-  { phase: 'recovery',    label: '复苏', asset: '股票',  startAngle: 270, endAngle: 360, labelX: 155, labelY: 75,  assetX: 155, assetY: 95 },
-  { phase: 'overheat',    label: '过热', asset: '商品',  startAngle: 180, endAngle: 270, labelX: 55,  labelY: 75,  assetX: 55,  assetY: 95 },
-  { phase: 'stagflation', label: '滞胀', asset: '现金',  startAngle: 90,  endAngle: 180, labelX: 55,  labelY: 155, assetX: 55,  assetY: 175 },
-  { phase: 'recession',   label: '衰退', asset: '债券',  startAngle: 0,   endAngle: 90,  labelX: 155, labelY: 155, assetX: 155, assetY: 175 },
-]
-
-function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
-  const rad = (angleDeg - 90) * Math.PI / 180
+function polar(cx: number, cy: number, r: number, deg: number) {
+  const rad = (deg - 90) * Math.PI / 180
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
 }
 
-function arcPath(cx: number, cy: number, r: number, startAngle: number, endAngle: number) {
-  const start = polarToCartesian(cx, cy, r, endAngle)
-  const end = polarToCartesian(cx, cy, r, startAngle)
-  const large = endAngle - startAngle > 180 ? 1 : 0
-  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${large} 0 ${end.x} ${end.y} Z`
-}
-
-const PHASE_COLORS: Record<string, string> = {
-  recovery: '#22c55e',
-  overheat: '#ef4444',
-  stagflation: '#eab308',
-  recession: '#3b82f6',
+function arc(cx: number, cy: number, r: number, s: number, e: number) {
+  const start = polar(cx, cy, r, e), end = polar(cx, cy, r, s)
+  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 0 0 ${end.x} ${end.y} Z`
 }
 
 export default function MerillClock({ data }: Props) {
-  const cx = 105, cy = 115, r = 85
-  const activeColor = PHASE_COLORS[data.phase]
+  const cx = 105, cy = 115, r = 82
+  const color = COLORS[data.phase]
+  const conf = Math.round(data.confidence * 100)
 
   return (
-    <div className="bg-[#111122] border border-[#1e1e3a] rounded-2xl p-6 shadow-lg shadow-black/30">
-      <h3 className="text-sm font-medium text-[#888] mb-3 tracking-wide">美林时钟</h3>
+    <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="text-[11px] text-[#555] font-medium mb-3 uppercase tracking-widest">美林时钟</div>
 
       <div className="flex justify-center">
         <svg width="210" height="230" viewBox="0 0 210 230">
-          {/* 发光滤镜 */}
           <defs>
-            <filter id="glow">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
+            <filter id="glow"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
           </defs>
-
-          {/* 四象限 */}
-          {QUADRANTS.map(q => {
+          {PHASES.map(q => {
             const active = data.phase === q.phase
-            const color = PHASE_COLORS[q.phase]
+            const c = COLORS[q.phase]
             return (
               <g key={q.phase}>
-                <path
-                  d={arcPath(cx, cy, r, q.startAngle, q.endAngle)}
-                  fill={active ? color : '#1a1a2e'}
-                  stroke={active ? color : '#2a2a4a'}
-                  strokeWidth={active ? '2' : '1'}
-                  opacity={active ? 1 : 0.3}
-                  filter={active ? 'url(#glow)' : undefined}
-                />
-                <text x={q.labelX} y={q.labelY} textAnchor="middle"
-                  fill={active ? '#fff' : '#555'} fontSize={active ? "15" : "12"} fontWeight={active ? "bold" : "normal"}>
-                  {q.label}
-                </text>
-                <text x={q.assetX} y={q.assetY} textAnchor="middle"
-                  fill={active ? 'rgba(255,255,255,0.85)' : '#444'} fontSize="10">
-                  {q.asset}
-                </text>
+                <path d={arc(cx, cy, r, q.sa, q.ea)}
+                  fill={active ? c : '#12122a'} stroke={active ? c : '#1e1e3a'}
+                  strokeWidth={active ? 1.5 : 0.5} opacity={active ? 0.9 : 0.25}
+                  filter={active ? 'url(#glow)' : undefined} />
+                <text x={q.lx} y={q.ly} textAnchor="middle" fill={active ? '#fff' : '#444'}
+                  fontSize={active ? '14' : '11'} fontWeight={active ? 'bold' : 'normal'}>{q.label}</text>
+                <text x={q.ax} y={q.ay} textAnchor="middle" fill={active ? 'rgba(255,255,255,0.7)' : '#333'}
+                  fontSize="9">{q.asset}</text>
               </g>
             )
           })}
-
-          {/* 中心圆 — 置信度 */}
-          <circle cx={cx} cy={cy} r="32" fill="#0a0a14" stroke={activeColor} strokeWidth="1.5" opacity="0.8" />
-          <text x={cx} y={cy - 4} textAnchor="middle" fill="#00d4ff" fontSize="20" fontWeight="bold">
-            {Math.round(data.confidence * 100)}%
-          </text>
-          <text x={cx} y={cy + 14} textAnchor="middle" fill="#888" fontSize="9">
-            置信度
-          </text>
-
-          {/* 坐标轴标签 */}
-          <text x={cx} y={18} textAnchor="middle" fill="#666" fontSize="9">GDP ↑</text>
-          <text x={cx} y={218} textAnchor="middle" fill="#666" fontSize="9">GDP ↓</text>
-          <text x={6} y={cy + 3} textAnchor="start" fill="#666" fontSize="9">CPI ↑</text>
-          <text x={204} y={cy + 3} textAnchor="end" fill="#666" fontSize="9">CPI ↓</text>
+          <circle cx={cx} cy={cy} r="30" fill="#0a0a14" stroke={color} strokeWidth="1" opacity="0.9" />
+          <text x={cx} y={cy - 2} textAnchor="middle" fill={color} fontSize="18" fontWeight="bold">{conf}%</text>
+          <text x={cx} y={cy + 12} textAnchor="middle" fill="#555" fontSize="8">置信度</text>
+          <text x={cx} y={16} textAnchor="middle" fill="#444" fontSize="8">GDP ↑</text>
+          <text x={cx} y={222} textAnchor="middle" fill="#444" fontSize="8">GDP ↓</text>
+          <text x={8} y={cy + 3} textAnchor="start" fill="#444" fontSize="8">CPI ↑</text>
+          <text x={202} y={cy + 3} textAnchor="end" fill="#444" fontSize="8">CPI ↓</text>
         </svg>
       </div>
 
-      {/* 状态文字 */}
-      <div className="text-center mt-2">
-        <div className="text-3xl font-bold" style={{ color: PHASE_COLORS[data.phase] }}>
-          {data.phase_label}
-        </div>
-        <div className="text-sm text-[#888] mt-1">
-          推荐超配: <span className="text-[#e0e0e0] font-medium">{data.best_asset}</span>
-        </div>
-        {data.credit_signal && (
-          <div className="text-xs text-[#888] mt-0.5">
-            信贷环境: <span className="text-[#e0e0e0]">{data.credit_signal}</span>
-          </div>
-        )}
+      <div className="text-center mt-1">
+        <span className="text-2xl font-bold" style={{ color }}>{data.phase_label}</span>
+        <span className="text-[11px] text-[#555] ml-2">→ 超配 <span className="text-[#ccc] font-medium">{data.best_asset}</span></span>
       </div>
 
-      {/* 预警 */}
       {data.transition_warning && (
-        <div className="mt-3 px-3 py-2 bg-[#1a1a0a] border border-[#3a3a1a] rounded-lg text-xs text-[#eab308]">
-          <span className="mr-1">&#x26A0;&#xFE0F;</span>{data.transition_warning}
+        <div className="mt-3 px-3 py-1.5 rounded-lg text-[11px] text-[#eab308] border border-[#eab30822]"
+          style={{ background: 'rgba(234,179,8,0.06)' }}>
+          ⚠️ {data.transition_warning}
         </div>
       )}
     </div>

@@ -1,35 +1,31 @@
-/* 月线信号热力表
+/* 月线信号热力表 v2
  *
- * 表格: 标的名称 | 代码 | 当前价 | 趋势 | 回调位置 | 评分 | 信号
- * 评分列热力色彩，可点击展开详情
+ * 参考 heatmap.html: 紧凑行高 · 热力色条 · 评分数字突出
+ * 去掉外部卡片包裹(由 Dashboard 统一管理)
  */
 
 import { useState } from 'react'
 import type { SignalData } from '../api/types'
 
-interface Props {
-  data: SignalData[]
+interface Props { data: SignalData[] }
+
+function scoreColor(s: number): string {
+  if (s >= 80) return '#34d399'
+  if (s >= 60) return '#facc15'
+  if (s >= 40) return '#9ca3af'
+  if (s >= 20) return '#fb923c'
+  return '#f87171'
 }
 
-// 评分 → 热力颜色 (5级色彩编码)
-function scoreColor(score: number): string {
-  if (score >= 80) return '#34d399'  // emerald-400 — 强买入
-  if (score >= 60) return '#facc15'  // yellow-400 — 关注
-  if (score >= 40) return '#9ca3af'  // gray-400 — 持有
-  if (score >= 20) return '#fb923c'  // orange-400 — 警惕
-  return '#f87171'                    // red-400 — 强卖出
+function scoreBg(s: number): string {
+  if (s >= 80) return 'rgba(34,197,94,0.1)'
+  if (s >= 60) return 'rgba(250,204,21,0.08)'
+  if (s >= 40) return 'rgba(156,163,175,0.06)'
+  if (s >= 20) return 'rgba(251,146,60,0.08)'
+  return 'rgba(248,113,113,0.1)'
 }
 
-// 评分 → 背景色 (低透明度)
-function scoreBg(score: number): string {
-  if (score >= 80) return 'rgba(34,197,94,0.12)'
-  if (score >= 60) return 'rgba(132,204,22,0.10)'
-  if (score >= 40) return 'rgba(234,179,8,0.08)'
-  if (score >= 20) return 'rgba(249,115,22,0.10)'
-  return 'rgba(239,68,68,0.12)'
-}
-
-function formatPrice(p: number | null): string {
+function fmtPrice(p: number | null): string {
   if (p === null) return '-'
   if (p >= 10000) return p.toLocaleString('en-US', { maximumFractionDigits: 0 })
   if (p >= 100) return p.toFixed(1)
@@ -40,98 +36,84 @@ export default function SignalTable({ data }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   return (
-    <div>
-      <div className="overflow-x-auto max-h-[500px] overflow-y-auto rounded-xl border border-[#1e1e3a]/60 bg-[#0c0c1a]">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-[#888] text-xs bg-[#0a0a18] sticky top-0 z-10">
-              <th className="text-left py-2.5 px-3 font-medium">标的</th>
-              <th className="text-left py-2.5 px-3 font-medium hidden sm:table-cell">代码</th>
-              <th className="text-right py-2.5 px-3 font-medium">现价</th>
-              <th className="text-center py-2.5 px-3 font-medium">趋势</th>
-              <th className="text-center py-2.5 px-3 font-medium hidden md:table-cell">回调位置</th>
-              <th className="text-center py-2.5 px-3 font-medium">评分</th>
-              <th className="text-center py-2.5 px-3 font-medium">信号</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((s, idx) => (
-              <>
-                <tr
-                  key={s.symbol}
-                  className={`cursor-pointer hover:bg-[#1a1a3a] transition-colors duration-200 ${
-                    idx % 2 === 0 ? 'bg-[#0f0f20]' : 'bg-[#111128]'
-                  }`}
-                  onClick={() => setExpanded(expanded === s.symbol ? null : s.symbol)}
-                >
-                  <td className="py-3 px-3 font-medium text-[#e0e0e0]">{s.name}</td>
-                  <td className="py-3 px-3 text-[#888] text-xs hidden sm:table-cell">{s.symbol}</td>
-                  <td className="py-3 px-3 text-right font-mono text-[#ccc]">{formatPrice(s.current_price)}</td>
-                  <td className="py-3 px-3 text-center">
-                    <TrendBadge trend={s.trend} label={s.trend_label} />
-                  </td>
-                  <td className="py-3 px-3 text-center text-xs text-[#aaa] hidden md:table-cell">{s.pullback_label}</td>
-                  <td className="py-3 px-3 text-center">
-                    <span className="inline-block w-14 py-1 rounded-md text-lg font-bold"
-                      style={{ color: scoreColor(s.score), background: scoreBg(s.score) }}>
-                      {s.score.toFixed(0)}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    <span className="text-lg font-bold px-2 py-0.5 rounded-full"
-                      style={{ color: scoreColor(s.score), background: scoreBg(s.score) }}>
-                      {s.level_label}
-                    </span>
+    <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid rgba(255,255,255,0.04)' }}>
+      <table className="w-full text-[13px]">
+        <thead>
+          <tr className="text-[10px] text-[#555] uppercase tracking-wider" style={{ background: 'rgba(255,255,255,0.02)' }}>
+            <th className="text-left py-2.5 px-4 font-medium">标的</th>
+            <th className="text-right py-2.5 px-4 font-medium">现价</th>
+            <th className="text-center py-2.5 px-4 font-medium">趋势</th>
+            <th className="text-center py-2.5 px-4 font-medium hidden md:table-cell">回调</th>
+            <th className="text-center py-2.5 px-4 font-medium w-20">评分</th>
+            <th className="text-center py-2.5 px-4 font-medium">信号</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((s, i) => (
+            <>
+              <tr key={s.symbol}
+                className="cursor-pointer transition-colors hover:bg-white/[0.03]"
+                style={{ borderTop: i > 0 ? '1px solid rgba(255,255,255,0.03)' : undefined }}
+                onClick={() => setExpanded(expanded === s.symbol ? null : s.symbol)}>
+                <td className="py-3 px-4">
+                  <div className="font-medium text-[#e0e0e0]">{s.name}</div>
+                  <div className="text-[10px] text-[#444] mt-0.5">{s.symbol}</div>
+                </td>
+                <td className="py-3 px-4 text-right font-mono text-[#bbb] tabular-nums">{fmtPrice(s.current_price)}</td>
+                <td className="py-3 px-4 text-center">
+                  <TrendPill trend={s.trend} label={s.trend_label} />
+                </td>
+                <td className="py-3 px-4 text-center text-[11px] text-[#777] hidden md:table-cell">{s.pullback_label}</td>
+                <td className="py-3 px-4 text-center">
+                  {/* 评分 — 参考 heatmap 的大数字风格 */}
+                  <div className="inline-flex items-center justify-center w-12 h-8 rounded-lg text-base font-extrabold"
+                    style={{ color: scoreColor(s.score), background: scoreBg(s.score) }}>
+                    {s.score.toFixed(0)}
+                  </div>
+                </td>
+                <td className="py-3 px-4 text-center">
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+                    style={{ color: scoreColor(s.score), background: scoreBg(s.score) }}>
+                    {s.level_label}
+                  </span>
+                </td>
+              </tr>
+
+              {expanded === s.symbol && (
+                <tr key={`${s.symbol}-d`}>
+                  <td colSpan={6} className="px-4 py-3" style={{ background: 'rgba(255,255,255,0.015)', borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-2 text-[11px]">
+                      <KV k="MA5" v={s.ma5?.toFixed(2)} />
+                      <KV k="MA10" v={s.ma10?.toFixed(2)} />
+                      <KV k="MA20" v={s.ma20?.toFixed(2)} />
+                      <KV k="成交量" v={s.volume_signal} />
+                      <KV k="量比" v={s.volume_ratio?.toFixed(2)} />
+                      <KV k="趋势分" v={s.breakdown.trend_score.toFixed(0)} />
+                      <KV k="回调分" v={s.breakdown.pullback_score.toFixed(0)} />
+                      <KV k="量能分" v={s.breakdown.volume_score.toFixed(0)} />
+                      <KV k="估值分" v={s.breakdown.valuation_score?.toFixed(1) ?? 'N/A'} />
+                    </div>
                   </td>
                 </tr>
-
-                {/* 展开详情 */}
-                {expanded === s.symbol && (
-                  <tr key={`${s.symbol}-detail`}>
-                    <td colSpan={7} className="py-3 px-4 bg-[#0d0d1a]">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                        <DetailItem label="MA5" value={s.ma5?.toFixed(2)} />
-                        <DetailItem label="MA10" value={s.ma10?.toFixed(2)} />
-                        <DetailItem label="MA20" value={s.ma20?.toFixed(2)} />
-                        <DetailItem label="回调" value={s.pullback_label} />
-                        <DetailItem label="成交量" value={s.volume_signal} />
-                        <DetailItem label="量比" value={s.volume_ratio?.toFixed(2)} />
-                        <DetailItem label="趋势分" value={s.breakdown.trend_score.toFixed(0)} />
-                        <DetailItem label="回调分" value={s.breakdown.pullback_score.toFixed(0)} />
-                        <DetailItem label="量能分" value={s.breakdown.volume_score.toFixed(0)} />
-                        <DetailItem label="估值分" value={s.breakdown.valuation_score?.toFixed(1) ?? 'N/A'} />
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              )}
+            </>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
 
-function TrendBadge({ trend, label }: { trend: string; label: string }) {
-  const colors: Record<string, { text: string; bg: string }> = {
-    bullish:  { text: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
-    bearish:  { text: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-    sideways: { text: '#eab308', bg: 'rgba(234,179,8,0.08)' },
+function TrendPill({ trend, label }: { trend: string; label: string }) {
+  const m: Record<string, { c: string; bg: string }> = {
+    bullish:  { c: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
+    bearish:  { c: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+    sideways: { c: '#eab308', bg: 'rgba(234,179,8,0.06)' },
   }
-  const c = colors[trend] || colors.sideways
-  return (
-    <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: c.text, background: c.bg }}>
-      {label}
-    </span>
-  )
+  const s = m[trend] || m.sideways
+  return <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ color: s.c, background: s.bg }}>{label}</span>
 }
 
-function DetailItem({ label, value }: { label: string; value?: string | null }) {
-  return (
-    <div>
-      <span className="text-[#666]">{label}: </span>
-      <span className="text-[#ccc]">{value ?? '-'}</span>
-    </div>
-  )
+function KV({ k, v }: { k: string; v?: string | null }) {
+  return <div><span className="text-[#555]">{k}</span> <span className="text-[#bbb] font-mono">{v ?? '-'}</span></div>
 }

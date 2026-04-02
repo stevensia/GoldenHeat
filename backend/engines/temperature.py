@@ -88,13 +88,33 @@ class MarketTemperature:
         df = df.dropna(subset=["close"]).reset_index(drop=True)
         return df
 
-    def _pe_score(self, df: pd.DataFrame) -> float:
-        """PE 分位分（用价格历史分位数近似）
+    def _pe_score(self, df: pd.DataFrame, symbol: str = "") -> float:
+        """PE 分位分
 
-        当前价格在10年历史价格中的百分位:
-        - 0% (历史最低) → 温度0
-        - 100% (历史最高) → 温度100
+        优先使用 valuation 表的真实 pe_percentile，
+        如果无数据则降级回价格历史分位数近似。
+
+        Args:
+            df: K线数据
+            symbol: 标的代码，用于查询 valuation 表
         """
+        # 优先从 valuation 表获取真实 PE 百分位
+        if symbol:
+            try:
+                rows = fetchall(
+                    """SELECT pe_percentile FROM valuation
+                       WHERE symbol = ? AND pe_percentile IS NOT NULL
+                       ORDER BY date DESC LIMIT 1""",
+                    (symbol,),
+                )
+                if rows and rows[0]["pe_percentile"] is not None:
+                    real_pct = float(rows[0]["pe_percentile"])
+                    logger.debug(f"{symbol} 使用真实 PE 百分位: {real_pct:.1f}")
+                    return max(0.0, min(100.0, real_pct))
+            except Exception as e:
+                logger.warning(f"{symbol} 查询 valuation 表失败，降级回价格近似: {e}")
+
+        # 降级: 用价格历史分位数近似
         if len(df) < 12:
             return 50.0  # 数据不足，返回中性
 
@@ -225,7 +245,7 @@ class MarketTemperature:
             return None
 
         # 三维度评分
-        pe_score = self._pe_score(df)
+        pe_score = self._pe_score(df, symbol=symbol)
         ma_score = self._ma_score(df)
         vol_score = self._volume_score(df)
 

@@ -120,3 +120,41 @@ export interface DashboardData {
   signals: SignalData[]
   bull_bear: BullBearData[]
 }
+
+// === 时钟摘要（双市场） ===
+export interface ClockSummary {
+  cn: MerillClockData | null
+  us: MerillClockData | null
+}
+
+// === Admin 时钟评估记录 ===
+export interface ClockAssessment {
+  id: number
+  market: string
+  final_phase: string
+  final_position: number
+  final_confidence: number
+  algo_phase: string | null
+  algo_position: number | null
+  algo_confidence: number | null
+  ai_phase: string | null
+  ai_position: number | null
+  ai_confidence: number | null
+  human_phase: string | null
+  human_position: number | null
+  human_confidence: number | null
+  human_notes: string | null
+  weights: string | null
+  algo_details: string | null
+  trigger_type: string | null
+  assessed_at: string
+}
+
+// === Admin 指标 ===
+export interface ClockIndicator {
+  indicator: string
+  name: string
+  value: number
+  date: string
+  source: string
+}

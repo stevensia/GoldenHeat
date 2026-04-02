@@ -31,6 +31,7 @@ from backend.api.admin_clock import router as admin_clock_router
 from backend.api.valuation import router as valuation_router
 from backend.api.kline_history import router as kline_history_router
 from backend.api.macro import router as macro_router
+from backend.api.clock_public import router as clock_public_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -110,6 +111,7 @@ app.include_router(admin_clock_router, prefix="/api", tags=["Admin Clock"])
 app.include_router(valuation_router, prefix="/api", tags=["Valuation"])
 app.include_router(kline_history_router, prefix="/api", tags=["K-Line"])
 app.include_router(macro_router, prefix="/api", tags=["Macro"])
+app.include_router(clock_public_router, prefix="/api", tags=["Clock Public"])
 
 
 @app.on_event("startup")

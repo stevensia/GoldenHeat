@@ -11,6 +11,10 @@ interface Props {
   data: MerillClockData
   /** 宏观数据明细（来自新 API，可能为 null） */
   macroDetails?: MacroDetail[] | null
+  /** 市场标签（如 '🇨🇳 中国' 或 '🌍 美国'） */
+  marketLabel?: string
+  /** 是否隐藏底部数据溯源面板 */
+  hideDataSource?: boolean
 }
 
 /*
@@ -68,7 +72,7 @@ function positionToDeg(position: number): number {
   return (315 + position * 30) % 360
 }
 
-export default function MerillClock({ data, macroDetails }: Props) {
+export default function MerillClock({ data, macroDetails, marketLabel, hideDataSource }: Props) {
   const cx = 105, cy = 115, r = 82
   const color = COLORS[data.phase]
   const conf = Math.round(data.confidence * 100)
@@ -85,7 +89,9 @@ export default function MerillClock({ data, macroDetails }: Props) {
   return (
     <div>
       <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="text-[11px] text-[#555] font-medium mb-3 uppercase tracking-widest">美林时钟</div>
+        <div className="text-[11px] text-[#555] font-medium mb-3 uppercase tracking-widest">
+          {marketLabel ? <span className="normal-case tracking-normal text-[12px]">{marketLabel}</span> : '美林时钟'}
+        </div>
 
         <div className="flex justify-center">
           <svg width="210" height="230" viewBox="0 0 210 230">
@@ -191,9 +197,11 @@ export default function MerillClock({ data, macroDetails }: Props) {
       </div>
 
       {/* 数据溯源折叠面板 */}
-      <div className="mt-3">
-        <DataSourcePanel data={macroDetails ?? null} />
-      </div>
+      {!hideDataSource && (
+        <div className="mt-3">
+          <DataSourcePanel data={macroDetails ?? null} />
+        </div>
+      )}
     </div>
   )
 }

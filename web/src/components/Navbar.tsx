@@ -60,6 +60,16 @@ export default function Navbar({ activeTab, onTabChange }: Props) {
             style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
             月线级别
           </div>
+          <a
+            href="#/admin/clock"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#555] hover:text-[#aaa] hover:bg-white/[0.04] transition-colors"
+            title="Admin"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="8" cy="8" r="2.5" />
+              <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M2.93 2.93l1.06 1.06M11.01 11.01l1.06 1.06M13.07 2.93l-1.06 1.06M4.99 11.01l-1.06 1.06" />
+            </svg>
+          </a>
         </div>
 
         <button

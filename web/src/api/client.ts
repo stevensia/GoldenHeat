@@ -5,6 +5,9 @@ import type {
   ValuationHistoryPoint,
   KlineHistoryPoint,
   MacroDetail,
+  ClockSummary,
+  ClockAssessment,
+  ClockIndicator,
 } from './types'
 
 // API 基础路径：生产环境 /heat/api，开发环境 /api（vite proxy）
@@ -67,4 +70,60 @@ export async function fetchKlineHistory(
 /** 获取宏观数据明细（Track A 端点，可能 404） */
 export async function fetchMacroDetails(): Promise<MacroDetail[] | null> {
   return fetchJSONOrNull<MacroDetail[]>('/macro/details')
+}
+
+/** 获取双市场时钟摘要（无需 token） */
+export async function fetchClockSummary(): Promise<ClockSummary> {
+  return fetchJSON<ClockSummary>('/clock/summary')
+}
+
+// === Admin Clock API（需要 Bearer token） ===
+
+async function fetchJSONWithToken<T>(path: string, token: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error(`API ${path}: ${res.status} ${res.statusText}`)
+  return res.json()
+}
+
+async function postJSONWithToken<T>(path: string, token: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) throw new Error(`API ${path}: ${res.status} ${res.statusText}`)
+  return res.json()
+}
+
+/** Admin: 获取最新评估 */
+export async function fetchAdminClockLatest(token: string, market = 'cn'): Promise<ClockAssessment> {
+  return fetchJSONWithToken<ClockAssessment>(`/admin/clock/latest?market=${market}`, token)
+}
+
+/** Admin: 获取评估历史 */
+export async function fetchAdminClockHistory(token: string, market = 'cn', limit = 20): Promise<ClockAssessment[]> {
+  return fetchJSONWithToken<ClockAssessment[]>(`/admin/clock/history?market=${market}&limit=${limit}`, token)
+}
+
+/** Admin: 获取指标 */
+export async function fetchAdminClockIndicators(token: string, market = 'cn'): Promise<ClockIndicator[]> {
+  return fetchJSONWithToken<ClockIndicator[]>(`/admin/clock/indicators?market=${market}`, token)
+}
+
+/** Admin: 触发评估 */
+export async function postAdminClockAssess(token: string, market = 'cn'): Promise<unknown> {
+  return postJSONWithToken('/admin/clock/assess', token, { market, trigger_type: 'manual' })
+}
+
+/** Admin: 人工确认 */
+export async function postAdminClockConfirm(
+  token: string,
+  data: { market: string; phase: string; position: number; confidence: number; notes: string },
+): Promise<unknown> {
+  return postJSONWithToken('/admin/clock/confirm', token, data)
 }

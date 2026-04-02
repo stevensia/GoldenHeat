@@ -14,6 +14,7 @@ import {
   fetchValuationHistory,
   fetchKlineHistory,
   fetchMacroDetails,
+  fetchClockSummary,
 } from '../api/client'
 import type { KlineHistoryPoint, MacroDetail, ValuationHistoryPoint } from '../api/types'
 import Navbar, { type MarketTab } from '../components/Navbar'
@@ -73,6 +74,13 @@ export default function Dashboard() {
     queryKey: ['macro-details'],
     queryFn: fetchMacroDetails,
     staleTime: 10 * 60 * 1000,
+  })
+
+  // 双市场时钟摘要（cn + us）
+  const { data: clockSummary } = useQuery({
+    queryKey: ['clock-summary'],
+    queryFn: fetchClockSummary,
+    staleTime: 5 * 60 * 1000,
   })
 
   // 新 API：估值历史（Track A，取第一个标的作为综合参考）
@@ -147,13 +155,30 @@ export default function Dashboard() {
         {/* 投资哲学 Banner */}
         <PhilosophyBanner />
 
-        {/* 三栏：美林时钟 + 市场温度 + 资产配置 */}
+        {/* 三栏：美林时钟（双） + 市场温度 + 资产配置 */}
         <div className="grid gap-4 lg:grid-cols-3">
-          {/* 美林时钟（含下方折叠数据溯源面板） */}
-          <MerillClock
-            data={data.merill_clock}
-            macroDetails={macroDetails as MacroDetail[] | null | undefined}
-          />
+          {/* 美林时钟 — 双市场（中国 + 美国） */}
+          <div>
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-1">
+              <MerillClock
+                data={clockSummary?.cn ?? data.merill_clock}
+                macroDetails={macroDetails as MacroDetail[] | null | undefined}
+                marketLabel="🇨🇳 中国美林时钟"
+              />
+              {clockSummary?.us ? (
+                <MerillClock
+                  data={clockSummary.us}
+                  marketLabel="🌍 美国美林时钟"
+                  hideDataSource
+                />
+              ) : (
+                <div className="rounded-2xl p-5 flex items-center justify-center text-[12px] text-[#555]"
+                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', minHeight: 200 }}>
+                  🌍 美国时钟数据加载中…
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* 市场温度 — 百分位刻度尺 */}
           <TemperatureGauge

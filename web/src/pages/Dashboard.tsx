@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useQuery } from '@tanstack/react-query'
 import { fetchDashboard } from '../api/client'
 import type { BullBearData, SignalData, TemperatureData } from '../api/types'
@@ -105,6 +106,34 @@ export default function Dashboard() {
   const coolestAsset = [...filteredTemps].sort((a, b) => a.temperature - b.temperature)[0]
   const updated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleString('zh-CN') : '-'
   const titlePack = MARKET_TITLES[tab]
+
+  const allocationChartData = Object.entries(data.merill_clock.allocation)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, value], index) => ({
+      name,
+      value: Math.round(value * 100),
+      fill: ALLOCATION_COLORS[index % ALLOCATION_COLORS.length],
+    }))
+
+  const signalChartData = [...filteredSignals]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6)
+    .reverse()
+    .map((item) => ({
+      name: item.name,
+      score: Number(item.score.toFixed(0)),
+      trend: Number(item.breakdown.trend_score.toFixed(0)),
+      pullback: Number(item.breakdown.pullback_score.toFixed(0)),
+      volume: Number(item.breakdown.volume_score.toFixed(0)),
+    }))
+
+  const tempChartData = [...filteredTemps]
+    .sort((a, b) => b.temperature - a.temperature)
+    .slice(0, 8)
+    .map((item) => ({
+      name: item.name,
+      temperature: Number(item.temperature.toFixed(0)),
+    }))
 
   return (
     <div className="page-shell">
@@ -247,43 +276,119 @@ export default function Dashboard() {
 
           <div className="grid gap-5">
             <div className="paper-card">
-              <SectionHeader title="Allocation" subtitle="推荐配置不再用重图表，改为更像投委会 memo 的表达。" />
-              <div className="mt-6 space-y-4">
-                {Object.entries(data.merill_clock.allocation)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([asset, ratio]) => (
-                    <div key={asset}>
+              <SectionHeader title="Allocation" subtitle="推荐配置用图表和比例同时表达，首页一眼看清资金倾向。" />
+              <div className="mt-6 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+                <div className="chart-wrap h-[250px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={allocationChartData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={56}
+                        outerRadius={92}
+                        paddingAngle={3}
+                        stroke="rgba(255,255,255,0.8)"
+                        strokeWidth={2}
+                      >
+                        {allocationChartData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => [`${value ?? '-'}%`, '配置']} contentStyle={tooltipStyle} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="space-y-4">
+                  {allocationChartData.map((item) => (
+                    <div key={item.name}>
                       <div className="mb-2 flex items-center justify-between gap-4 text-sm">
-                        <span className="font-medium text-[var(--ink)]">{asset}</span>
-                        <span className="font-mono text-[var(--ink)]">{Math.round(ratio * 100)}%</span>
+                        <div className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ background: item.fill }} />
+                          <span className="font-medium text-[var(--ink)]">{item.name}</span>
+                        </div>
+                        <span className="font-mono text-[var(--ink)]">{item.value}%</span>
                       </div>
                       <div className="h-2 rounded-full bg-[rgba(17,24,39,0.08)]">
-                        <div className="h-2 rounded-full bg-[linear-gradient(90deg,var(--accent),var(--accent-2))]" style={{ width: `${ratio * 100}%` }} />
+                        <div className="h-2 rounded-full" style={{ width: `${item.value}%`, background: item.fill }} />
                       </div>
                     </div>
                   ))}
+                </div>
               </div>
             </div>
 
             <div className="paper-card">
-              <SectionHeader title="Temperature overview" subtitle="用一条温度带理解当前市场在哪个风险区间。" />
+              <SectionHeader title="Temperature overview" subtitle="用温度带 + 排名柱状图，一起看市场在哪个风险区间。" />
               <div className="mt-6">
                 <TemperatureRail value={averageTemp} />
               </div>
-              <div className="mt-6 grid grid-cols-3 gap-3 text-center text-xs text-[var(--muted)]">
-                <div>
-                  <div className="font-semibold text-[var(--ink)]">0–30</div>
-                  <div className="mt-1">冷静 / 可观察</div>
+              <div className="mt-6 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+                <div className="grid grid-cols-3 gap-3 text-center text-xs text-[var(--muted)]">
+                  <div>
+                    <div className="font-semibold text-[var(--ink)]">0–30</div>
+                    <div className="mt-1">冷静 / 可观察</div>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-[var(--ink)]">30–60</div>
+                    <div className="mt-1">均衡 / 等确认</div>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-[var(--ink)]">60–100</div>
+                    <div className="mt-1">偏热 / 控仓位</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="font-semibold text-[var(--ink)]">30–60</div>
-                  <div className="mt-1">均衡 / 等确认</div>
-                </div>
-                <div>
-                  <div className="font-semibold text-[var(--ink)]">60–100</div>
-                  <div className="mt-1">偏热 / 控仓位</div>
+
+                <div className="chart-wrap h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={tempChartData} layout="vertical" margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" horizontal={false} />
+                      <XAxis type="number" domain={[0, 100]} tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="name" width={68} tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <Tooltip formatter={(value) => [`${value ?? '-'}°`, '温度']} contentStyle={tooltipStyle} />
+                      <Bar dataKey="temperature" radius={[0, 10, 10, 0]}>
+                        {tempChartData.map((entry) => (
+                          <Cell key={entry.name} fill={temperatureBarColor(entry.temperature)} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-10 grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
+          <div className="paper-card">
+            <SectionHeader title="Signal strength chart" subtitle="把最强信号前六名做成横向对比图，便于快速排序。" />
+            {signalChartData.length > 0 ? (
+              <div className="mt-6 chart-wrap h-[320px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={signalChartData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 100]} tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Bar dataKey="score" fill="var(--accent)" radius={[10, 10, 0, 0]} />
+                    <Bar dataKey="trend" fill="#1f7a69" radius={[10, 10, 0, 0]} />
+                    <Bar dataKey="pullback" fill="#d4a24c" radius={[10, 10, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyState text="当前市场暂无可绘制的信号图表。" />
+            )}
+          </div>
+
+          <div className="paper-card">
+            <SectionHeader title="Signal legend" subtitle="图表不是装饰，对应的维度解释也要放在首页。" />
+            <div className="mt-6 space-y-4">
+              <LegendRow color="var(--accent)" title="综合评分" desc="最终月线信号总分，用来排序。" />
+              <LegendRow color="#1f7a69" title="趋势分" desc="趋势结构越顺，得分越高。" />
+              <LegendRow color="#d4a24c" title="回调分" desc="回踩位置越理想，得分越高。" />
+              <LegendRow color="#7d7468" title="量能 / 估值" desc="保留在下方 roster 内，继续作为辅助维度阅读。" />
             </div>
           </div>
         </section>
@@ -589,6 +694,18 @@ function PositionMetric({ label, value }: { label: string; value: string }) {
   )
 }
 
+function LegendRow({ color, title, desc }: { color: string; title: string; desc: string }) {
+  return (
+    <div className="rounded-[20px] border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.44)] px-4 py-4">
+      <div className="flex items-center gap-3">
+        <span className="h-3 w-3 rounded-full" style={{ background: color }} />
+        <span className="font-semibold text-[var(--ink)]">{title}</span>
+      </div>
+      <p className="mt-2 text-sm leading-6 text-[var(--muted-strong)]">{desc}</p>
+    </div>
+  )
+}
+
 function Tag({ children }: { children: React.ReactNode }) {
   return <span className="rounded-full border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.5)] px-3 py-1 text-xs text-[var(--muted-strong)]">{children}</span>
 }
@@ -625,6 +742,16 @@ function EmptyState({ text }: { text: string }) {
   )
 }
 
+const ALLOCATION_COLORS = ['#b45a3c', '#1f7a69', '#d4a24c', '#6b7280', '#d9795f', '#6ea699']
+
+const tooltipStyle = {
+  border: '1px solid rgba(17,24,39,0.08)',
+  borderRadius: '16px',
+  background: 'rgba(255,255,255,0.94)',
+  color: '#17181c',
+  boxShadow: '0 16px 40px rgba(17,24,39,0.10)',
+}
+
 function fmtPrice(value: number | null): string {
   if (value === null) return '-'
   if (value >= 10000) return value.toLocaleString('en-US', { maximumFractionDigits: 0 })
@@ -654,6 +781,13 @@ function marketName(tab: MarketTab): string {
   if (tab === 'crypto') return '加密'
   if (tab === 'us') return '美股'
   return '总览'
+}
+
+function temperatureBarColor(value: number) {
+  if (value < 30) return '#7fb3ff'
+  if (value < 60) return '#d4a24c'
+  if (value < 80) return '#d9795f'
+  return '#b45a3c'
 }
 
 function getPhaseTone(phase: BullBearData['phase']) {

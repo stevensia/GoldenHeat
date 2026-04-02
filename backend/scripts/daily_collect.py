@@ -80,7 +80,7 @@ def collect_kline() -> dict:
 
 
 def collect_valuation() -> dict:
-    """采集估值数据"""
+    """采集估值数据 (yfinance 个股)"""
     logger.info("💰 开始采集估值数据...")
     try:
         from backend.collectors.valuation import ValuationCollector
@@ -90,6 +90,20 @@ def collect_valuation() -> dict:
         return {"status": "ok", "result": result}
     except Exception as e:
         logger.error(f"💰 估值采集失败: {e}")
+        return {"status": "error", "error": str(e)}
+
+
+def collect_index_pe() -> dict:
+    """采集指数 PE 数据 (A股+S&P500)"""
+    logger.info("📊 开始采集指数 PE 数据...")
+    try:
+        from backend.collectors.index_pe import IndexPECollector
+        collector = IndexPECollector()
+        result = collector.collect_all()
+        logger.info(f"📊 指数 PE 采集完成: {result}")
+        return {"status": "ok", "result": result}
+    except Exception as e:
+        logger.error(f"📊 指数 PE 采集失败: {e}")
         return {"status": "error", "error": str(e)}
 
 
@@ -134,6 +148,7 @@ async def main():
     # 2. 行情数据
     report["kline"] = collect_kline()
     report["valuation"] = collect_valuation()
+    report["index_pe"] = collect_index_pe()
     
     # 3. 时钟评估
     report["assessment"] = await run_assessment()

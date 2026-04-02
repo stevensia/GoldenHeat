@@ -10,6 +10,7 @@
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -195,21 +196,51 @@ def extract_content(response: Optional[dict]) -> Optional[str]:
 
 
 def extract_json(response: Optional[dict]) -> Optional[dict]:
-    """从 LLM 响应中提取 JSON（处理 markdown 包裹）"""
+    """从 LLM 响应中提取 JSON（处理 markdown 包裹、前后文字等）"""
     content = extract_content(response)
     if not content:
         return None
     
     # 去掉 ```json 包裹
-    if content.startswith("```"):
+    if "```json" in content:
+        m = re.search(r"```json\s*(.*?)```", content, re.DOTALL)
+        if m:
+            content = m.group(1).strip()
+    elif content.startswith("```"):
         lines = content.split("\n")
         content = "\n".join(lines[1:-1])
     
+    # 先尝试直接解析
     try:
         return json.loads(content)
     except json.JSONDecodeError:
-        logger.warning(f"LLM 返回非 JSON: {content[:200]}")
-        return None
+        pass
+    
+    # 从文本中提取 JSON 对象 (处理前后有文字的情况)
+    m = re.search(r"\{[^{}]*\}", content, re.DOTALL)
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except json.JSONDecodeError:
+            pass
+    
+    # 尝试提取嵌套 JSON
+    start = content.find("{")
+    if start >= 0:
+        depth = 0
+        for i in range(start, len(content)):
+            if content[i] == "{":
+                depth += 1
+            elif content[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(content[start:i+1])
+                    except json.JSONDecodeError:
+                        break
+    
+    logger.warning(f"LLM 返回非 JSON: {content[:200]}")
+    return None
 
 
 def get_llm_status() -> dict:

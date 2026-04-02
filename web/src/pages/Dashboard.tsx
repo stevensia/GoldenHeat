@@ -122,8 +122,20 @@ export default function Dashboard() {
   const updated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleString('zh-CN') : '-'
   const titlePack = MARKET_TITLES[tab]
 
-  const phaseProgress = Math.round(data.merill_clock.confidence * 100)
+  const phaseChartData = PHASE_ORDER.map((phase) => ({
+    name: phase.label,
+    asset: phase.asset,
+    value: 25,
+    fill: data.merill_clock.phase === phase.key ? phase.color : 'rgba(23,24,28,0.10)',
+    note: phase.note,
+  }))
+
+  const confidenceData = [
+    { name: '置信度', value: Math.round(data.merill_clock.confidence * 100) },
+  ]
+
   const currentPhaseMeta = PHASE_ORDER.find((phase) => phase.key === data.merill_clock.phase) || PHASE_ORDER[0]
+  const phaseProgress = confidenceData[0].value
   const transitionText = getTransitionText(data.merill_clock.phase, phaseProgress)
 
   const allocationChartData = Object.entries(data.merill_clock.allocation)
@@ -195,8 +207,44 @@ export default function Dashboard() {
           <div className="mt-5 grid gap-5 xl:grid-cols-3">
             <div className="paper-card compact-card">
               <SectionEyebrow title="美林时钟" note={data.merill_clock.phase_label} />
-              <div className="mt-4 chart-wrap h-[360px]">
-                <MerrillClockSvg phase={data.merill_clock.phase} progress={phaseProgress} transitionText={transitionText} />
+              <div className="mt-4 chart-wrap h-[340px]">
+                <div className="relative h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={phaseChartData} dataKey="value" innerRadius={80} outerRadius={114} stroke="rgba(255,255,255,0.88)" strokeWidth={2}>
+                        {phaseChartData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Pie
+                        data={buildTransitionArc(data.merill_clock.phase, phaseProgress)}
+                        dataKey="value"
+                        innerRadius={62}
+                        outerRadius={72}
+                        startAngle={90}
+                        endAngle={-270}
+                        stroke="none"
+                      >
+                        <Cell fill="rgba(17,24,39,0.06)" />
+                        <Cell fill={getPhaseColor(data.merill_clock.phase)} />
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+
+                  <ClockLabel position="top" title="过热" asset="商品" note="通胀升温" active={currentPhaseMeta.key === 'overheat'} />
+                  <ClockLabel position="right" title="滞胀" asset="现金/防御" note="增长承压" active={currentPhaseMeta.key === 'stagflation'} />
+                  <ClockLabel position="bottom" title="衰退" asset="债券" note="防御优先" active={currentPhaseMeta.key === 'recession'} />
+                  <ClockLabel position="left" title="复苏" asset="股票" note="增长修复" active={currentPhaseMeta.key === 'recovery'} />
+
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                    <div className="text-[11px] tracking-[0.22em] text-[var(--muted)]">当前阶段</div>
+                    <div className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[var(--ink)]">{data.merill_clock.phase_label}</div>
+                    <div className="mt-1 text-xs text-[var(--muted-strong)]">{transitionText}</div>
+                    <div className="mt-1 text-xs text-[var(--muted-strong)]">代表资产：{currentPhaseMeta.asset}</div>
+                  </div>
+
+                  <ClockArrow phase={data.merill_clock.phase} color={getPhaseColor(data.merill_clock.phase)} progress={phaseProgress} />
+                </div>
               </div>
             </div>
 
@@ -208,7 +256,7 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" horizontal={false} />
                     <XAxis type="number" domain={[0, 100]} tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis type="category" dataKey="name" width={72} tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip content={<TextTooltip title="市场热度说明" valueKey="temperature" unit="°" dataKey="desc" />} />
+                    <Tooltip cursor={false} content={<TextTooltip title="市场热度说明" valueKey="temperature" unit="°" dataKey="desc" />} />
                     <Bar dataKey="temperature" radius={[0, 10, 10, 0]}>
                       {temperatureChartData.map((entry) => (
                         <Cell key={entry.name} fill={temperatureBarColor(entry.temperature)} />
@@ -229,7 +277,7 @@ export default function Dashboard() {
                         <Cell key={entry.name} fill={entry.fill} />
                       ))}
                     </Pie>
-                    <Tooltip content={<TextTooltip title="资产分配说明" valueKey="value" unit="%" dataKey="desc" />} />
+                    <Tooltip cursor={false} content={<TextTooltip title="资产分配说明" valueKey="value" unit="%" dataKey="desc" />} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -249,7 +297,7 @@ export default function Dashboard() {
             <div className="mt-5 grid gap-4 xl:grid-cols-3">
               <div className="rounded-[22px] border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.42)] px-4 py-4">
                 <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">美林时钟</div>
-                <div className="mt-2 text-lg font-semibold text-[var(--ink)]">{data.merill_clock.phase_label} · 置信度 {phaseProgress}%</div>
+                <div className="mt-2 text-lg font-semibold text-[var(--ink)]">{data.merill_clock.phase_label} · 置信度 {confidenceData[0].value}%</div>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted-strong)]">代表资产 {currentPhaseMeta.asset}，当前模型判断为：{data.merill_clock.description}{data.merill_clock.transition_warning ? `；预警：${data.merill_clock.transition_warning}` : ''}</p>
               </div>
 
@@ -285,7 +333,7 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" vertical={false} />
                     <XAxis dataKey="name" tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip content={<BullBearTooltip />} />
+                    <Tooltip cursor={false} content={<BullBearTooltip />} />
                     <Bar dataKey="priceVsMa12" name="现价 vs 年线" fill="var(--accent)" radius={[8, 8, 0, 0]} />
                     <Bar dataKey="ma12VsMa24" name="年线 vs 两年线" fill="#1f7a69" radius={[8, 8, 0, 0]} />
                   </BarChart>
@@ -305,7 +353,7 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" vertical={false} />
                     <XAxis dataKey="name" tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} domain={['dataMin - 8', 'dataMax + 8']} />
-                    <Tooltip content={<TrendTooltip />} />
+                    <Tooltip cursor={false} content={<TrendTooltip />} />
                     <Line type="monotone" dataKey="现价" stroke="var(--accent)" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                     <Line type="monotone" dataKey="MA5" stroke="#1f7a69" strokeWidth={2} dot={{ r: 2.5 }} />
                     <Line type="monotone" dataKey="MA10" stroke="#d4a24c" strokeWidth={2} dot={{ r: 2.5 }} />
@@ -335,7 +383,7 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" vertical={false} />
                     <XAxis dataKey="name" tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} />
-                    <Tooltip content={<TextTooltip title="趋势评分说明" valueKey="score" unit="分" dataKey="desc" />} />
+                    <Tooltip cursor={false} content={<TextTooltip title="趋势评分说明" valueKey="score" unit="分" dataKey="desc" />} />
                     <Area type="monotone" dataKey="score" stroke="var(--accent)" fill="url(#scoreFill)" strokeWidth={3} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -576,74 +624,39 @@ function PositionMetric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function MerrillClockSvg({ phase, progress, transitionText }: { phase: string; progress: number; transitionText: string }) {
-  const cx = 200
-  const cy = 180
-  const outer = 108
-  const inner = 64
-  const phaseIndex = PHASE_ORDER.findIndex((item) => item.key === phase)
-  const angleOffset = ((progress - 50) / 50) * 18
-  const pointerAngle = -90 + phaseIndex * 90 + angleOffset
-  const currentColor = getPhaseColor(phase)
+function ClockLabel({ position, title, asset, note, active }: { position: 'top' | 'right' | 'bottom' | 'left'; title: string; asset: string; note: string; active: boolean }) {
+  const posClass =
+    position === 'top'
+      ? 'left-1/2 top-1 -translate-x-1/2'
+      : position === 'right'
+        ? 'right-0 top-1/2 -translate-y-1/2 text-right'
+        : position === 'bottom'
+          ? 'left-1/2 bottom-1 -translate-x-1/2'
+          : 'left-0 top-1/2 -translate-y-1/2'
 
   return (
-    <svg viewBox="0 0 400 360" className="h-full w-full overflow-visible">
-      <defs>
-        <filter id="clockGlow" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="6" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
+    <div className={`pointer-events-none absolute ${posClass}`}>
+      <div className={`rounded-xl px-2 py-1.5 text-center ${active ? 'bg-[rgba(255,255,255,0.82)] shadow-[0_10px_24px_rgba(17,24,39,0.10)]' : 'bg-[rgba(255,255,255,0.52)]'}`}>
+        <div className="text-xs font-semibold leading-none text-[var(--ink)]">{title}</div>
+        <div className="mt-0.5 text-[10px] leading-none text-[var(--muted-strong)]">{asset}</div>
+        <div className="mt-1 text-[10px] leading-none text-[var(--muted)]">{note}</div>
+      </div>
+    </div>
+  )
+}
 
-      {PHASE_ORDER.map((item, index) => {
-        const start = -135 + index * 90
-        const end = start + 90
-        const active = item.key === phase
-        return (
-          <g key={item.key}>
-            <path
-              d={describeDonutSegment(cx, cy, inner, outer, start, end)}
-              fill={active ? item.color : 'rgba(23,24,28,0.08)'}
-              opacity={active ? 0.95 : 1}
-              stroke="rgba(255,255,255,0.9)"
-              strokeWidth="2"
-            />
-            {active ? (
-              <path
-                d={describeDonutSegment(cx, cy, outer + 4, outer + 16, start + 4, start + Math.max(12, (progress / 100) * 82))}
-                fill={item.color}
-                opacity="0.22"
-                filter="url(#clockGlow)"
-              />
-            ) : null}
-          </g>
-        )
-      })}
-
-      <circle cx={cx} cy={cy} r="52" fill="rgba(255,255,255,0.78)" stroke="rgba(17,24,39,0.08)" />
-      <text x={cx} y={cy - 8} textAnchor="middle" className="fill-[var(--ink)] text-[12px]" style={{ fontSize: 12, letterSpacing: '0.18em' }}>当前阶段</text>
-      <text x={cx} y={cy + 16} textAnchor="middle" className="fill-[var(--ink)]" style={{ fontSize: 24, fontWeight: 700 }}>{PHASE_ORDER[phaseIndex]?.label || '阶段'}</text>
-      <text x={cx} y={cy + 36} textAnchor="middle" className="fill-[var(--muted-strong)]" style={{ fontSize: 11 }}>{transitionText}</text>
-
-      {PHASE_ORDER.map((item, index) => {
-        const labelAngle = -90 + index * 90
-        const pos = polarToCartesian(cx, cy, 144, labelAngle)
-        return (
-          <g key={`${item.key}-label`} transform={`translate(${pos.x}, ${pos.y})`}>
-            <rect x={-34} y={-20} width={68} height={40} rx={12} fill={item.key === phase ? 'rgba(255,255,255,0.86)' : 'rgba(255,255,255,0.55)'} stroke="rgba(17,24,39,0.06)" />
-            <text x="0" y="-2" textAnchor="middle" className="fill-[var(--ink)]" style={{ fontSize: 12, fontWeight: 700 }}>{item.label}</text>
-            <text x="0" y="13" textAnchor="middle" className="fill-[var(--muted-strong)]" style={{ fontSize: 10 }}>{item.asset}</text>
-          </g>
-        )
-      })}
-
-      <g transform={`translate(${polarToCartesian(cx, cy, 136, pointerAngle).x}, ${polarToCartesian(cx, cy, 136, pointerAngle).y}) rotate(${pointerAngle + 90})`}>
-        <path d="M0 -10 L12 0 L0 10" fill="none" stroke={currentColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      </g>
-    </svg>
+function ClockArrow({ phase, color, progress }: { phase: string; color: string; progress: number }) {
+  const baseRotation = phase === 'recovery' ? -90 : phase === 'overheat' ? 0 : phase === 'stagflation' ? 90 : 180
+  const offset = ((progress - 50) / 50) * 18
+  const rotation = baseRotation + offset
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <div className="relative h-[156px] w-[156px]" style={{ transform: `rotate(${rotation}deg)` }}>
+        <div className="absolute left-1/2 top-1/2 h-[3px] w-[70px] -translate-y-1/2 rounded-full" style={{ background: color, transformOrigin: '0% 50%' }} />
+        <div className="absolute left-[114px] top-1/2 -translate-y-1/2" style={{ width: 0, height: 0, borderTop: '7px solid transparent', borderBottom: '7px solid transparent', borderLeft: `12px solid ${color}` }} />
+        <div className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-sm" style={{ background: color }} />
+      </div>
+    </div>
   )
 }
 
@@ -787,28 +800,12 @@ function marketTempByTab(items: TemperatureData[], tab: MarketTab) {
   return avg.toFixed(0)
 }
 
-function polarToCartesian(cx: number, cy: number, radius: number, angleDeg: number) {
-  const rad = ((angleDeg - 90) * Math.PI) / 180
-  return {
-    x: cx + radius * Math.cos(rad),
-    y: cy + radius * Math.sin(rad),
-  }
-}
-
-function describeDonutSegment(cx: number, cy: number, innerR: number, outerR: number, startAngle: number, endAngle: number) {
-  const startOuter = polarToCartesian(cx, cy, outerR, endAngle)
-  const endOuter = polarToCartesian(cx, cy, outerR, startAngle)
-  const startInner = polarToCartesian(cx, cy, innerR, startAngle)
-  const endInner = polarToCartesian(cx, cy, innerR, endAngle)
-  const largeArc = endAngle - startAngle <= 180 ? 0 : 1
-
+function buildTransitionArc(phase: string, progress: number) {
+  const clamped = Math.max(8, Math.min(96, progress))
   return [
-    `M ${startOuter.x} ${startOuter.y}`,
-    `A ${outerR} ${outerR} 0 ${largeArc} 0 ${endOuter.x} ${endOuter.y}`,
-    `L ${startInner.x} ${startInner.y}`,
-    `A ${innerR} ${innerR} 0 ${largeArc} 1 ${endInner.x} ${endInner.y}`,
-    'Z',
-  ].join(' ')
+    { name: '剩余', value: 100 - clamped },
+    { name: phase, value: clamped },
+  ]
 }
 
 function getTransitionText(phase: string, progress: number) {

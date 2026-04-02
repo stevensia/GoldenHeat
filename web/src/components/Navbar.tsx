@@ -33,7 +33,7 @@ export default function Navbar({ activeTab, onTabChange }: Props) {
         backdropFilter: 'blur(20px) saturate(180%)',
         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
       }}>
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
+      <div className="max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-10">
         <div className="flex items-center justify-between h-14 sm:h-16">
 
           {/* Logo */}

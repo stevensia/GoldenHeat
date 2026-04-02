@@ -1,9 +1,9 @@
 /* Dashboard 主页面 — 组装所有组件
  *
- * 优化点:
- * - 三大核心区域增加 section 标题 + 左侧装饰条
- * - 页面整体 padding 对称
- * - 各 section 间用视觉分隔线+标题风格统一
+ * 布局规则:
+ * - Navbar 和 main 共用同一个 max-w + px, 确保左右完全对齐
+ * - 各 section 用 SectionHeader 做视觉分隔，不额外包 SectionBox 边框
+ * - 卡片组件自带背景边框，不再嵌套容器
  */
 
 import { useState } from 'react'
@@ -37,6 +37,9 @@ function getMarket(symbol: string): MarketTab {
   return 'us'
 }
 
+/* ── 统一的内容宽度 class（跟 Navbar 保持一致） ── */
+const CONTAINER = 'max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-10'
+
 /* ── Section 标题组件 ── */
 function SectionHeader({ icon, title, subtitle, accentColor = '#00d4ff' }: {
   icon: string
@@ -46,7 +49,7 @@ function SectionHeader({ icon, title, subtitle, accentColor = '#00d4ff' }: {
 }) {
   return (
     <div className="flex items-center gap-3 mb-5">
-      <div className="w-1 h-8 rounded-full" style={{ background: `linear-gradient(to bottom, ${accentColor}, ${accentColor}44)` }} />
+      <div className="w-1 h-7 rounded-full shrink-0" style={{ background: `linear-gradient(to bottom, ${accentColor}, ${accentColor}33)` }} />
       <div>
         <h2 className="text-base sm:text-lg font-bold text-[#e0e0e0] tracking-tight flex items-center gap-2">
           <span>{icon}</span>
@@ -55,19 +58,6 @@ function SectionHeader({ icon, title, subtitle, accentColor = '#00d4ff' }: {
         {subtitle && <p className="text-[10px] text-[#555] mt-0.5">{subtitle}</p>}
       </div>
     </div>
-  )
-}
-
-/* ── Section 容器 ── */
-function SectionBox({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <section className={`relative rounded-2xl p-5 sm:p-6 ${className}`}
-      style={{
-        background: 'rgba(17, 17, 34, 0.3)',
-        border: '1px solid rgba(255,255,255,0.04)',
-      }}>
-      {children}
-    </section>
   )
 }
 
@@ -113,7 +103,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#0a0a14]">
       <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <main className="max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-10 py-6 sm:py-8">
+      <main className={`${CONTAINER} py-6 sm:py-8`}>
 
         {/* 页面头 — 市场标题 + 更新时间 */}
         <div className="flex items-center justify-between mb-8">
@@ -162,10 +152,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-10">
 
           {/* ═══ Section 1: 宏观研判 ═══ */}
-          <SectionBox>
+          <section>
             <SectionHeader
               icon="🧭"
               title="宏观研判"
@@ -179,11 +169,11 @@ export default function Dashboard() {
               )}
               <DeviationBar data={data.merill_clock} />
             </div>
-          </SectionBox>
+          </section>
 
           {/* ═══ Section 1.5: 各标的温度 ═══ */}
           {filteredTemp.length > 0 && (
-            <SectionBox>
+            <section>
               <SectionHeader
                 icon="🌡️"
                 title="标的温度"
@@ -195,12 +185,12 @@ export default function Dashboard() {
                   <TemperatureCard key={t.symbol} data={t} />
                 ))}
               </div>
-            </SectionBox>
+            </section>
           )}
 
           {/* ═══ Section 2: 月线信号 ═══ */}
           {filteredSignals.length > 0 && (
-            <SectionBox>
+            <section>
               <SectionHeader
                 icon="📊"
                 title="月线信号"
@@ -208,12 +198,12 @@ export default function Dashboard() {
                 accentColor="#22c55e"
               />
               <SignalTable data={filteredSignals} />
-            </SectionBox>
+            </section>
           )}
 
           {/* ═══ Section 3: 牛熊分割线 ═══ */}
           {filteredBullBear.length > 0 && (
-            <SectionBox>
+            <section>
               <SectionHeader
                 icon="📈"
                 title="牛熊分割线"
@@ -221,23 +211,21 @@ export default function Dashboard() {
                 accentColor="#7c3aed"
               />
               <BullBearChart data={filteredBullBear} />
-            </SectionBox>
+            </section>
           )}
 
           {/* 空状态 */}
           {filteredSignals.length === 0 && filteredBullBear.length === 0 && activeTab !== 'all' && (
-            <SectionBox>
-              <div className="text-center py-16">
-                <div className="text-4xl mb-3">📭</div>
-                <p className="text-[#888]">该市场暂无关注标的</p>
-                <p className="text-xs text-[#555] mt-1">可在后台配置 watchlist 添加</p>
-              </div>
-            </SectionBox>
+            <section className="text-center py-20">
+              <div className="text-4xl mb-3">📭</div>
+              <p className="text-[#888]">该市场暂无关注标的</p>
+              <p className="text-xs text-[#555] mt-1">可在后台配置 watchlist 添加</p>
+            </section>
           )}
         </div>
 
         {/* Footer */}
-        <footer className="text-center text-xs text-[#444] py-8 mt-10">
+        <footer className="text-center text-xs text-[#444] py-8 mt-12">
           <div className="h-px mb-6 mx-auto max-w-[200px]"
             style={{ background: 'linear-gradient(to right, transparent, #1e1e3a, transparent)' }} />
           <div className="flex items-center justify-center gap-2 text-[#555]">
@@ -277,10 +265,8 @@ function TemperatureCard({ data }: { data: import('../api/types').TemperatureDat
         <span className="text-xs">{data.emoji}</span>
       </div>
       <div className="text-2xl font-bold" style={{ color }}>{temp.toFixed(0)}°</div>
-      {/* 迷你温度条 */}
       <div className="relative h-1 rounded-full mt-2 overflow-hidden"
-        style={{ background: 'linear-gradient(to right, #3b82f6, #eab308, #ef4444)' }}>
-      </div>
+        style={{ background: 'linear-gradient(to right, #3b82f6, #eab308, #ef4444)' }} />
       <div className="relative h-0">
         <div className="absolute -top-[5px] w-2 h-2 rounded-full border border-white/50 shadow-sm"
           style={{ left: `calc(${temp}% - 4px)`, background: color }} />

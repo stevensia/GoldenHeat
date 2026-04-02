@@ -2,9 +2,13 @@
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # 项目根目录
 PROJECT_ROOT = Path(__file__).parent.parent
+
+# 加载 .env
+load_dotenv(PROJECT_ROOT / ".env")
 DATA_DIR = PROJECT_ROOT / "data"
 DB_PATH = DATA_DIR / "goldenheat.db"
 

@@ -1,73 +1,65 @@
-# React + TypeScript + Vite
+# GoldenHeat Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 说明
+这个目录是 GoldenHeat 的 React + Vite 前端工程。
 
-Currently, two official plugins are available:
+## 当前重点页面
+- `src/pages/Dashboard.tsx` — 首页主面板，当前所有重点讨论都集中在这里
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 2026-04-02 当前状态
+首页已经做过一轮大改版，当前可视为“可继续打磨的基础版”。
 
-## React Compiler
+### 目前首页结构
+1. 顶部核心图表
+   - 美林时钟
+   - 市场热度
+   - 资产分配
+2. 总览说明区
+   - 美林时钟
+   - 资产配置
+   - 市场热度（A股 / 美股 / 港股 / 加密）
+3. 牛熊分界指标图
+4. 趋势结构图 / 趋势评分图
+5. 月线信号清单
+6. 牛熊仓位建议
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 当前已确认的要求
+- 中文标题优先
+- 图表优先，说明收缩
+- 顶部图表的关键数字要尽量嵌入图中
+- Tooltip 要简短，不能遮挡图表
+- Recharts hover 灰色方块已修复，继续新增图表时记得：
+  ```tsx
+  <Tooltip cursor={false} ... />
+  ```
 
-## Expanding the ESLint configuration
+### 当前不要做的事
+- 不要默认继续使用最近那个 SVG 美林时钟实验版
+- 不要再次整体推翻首页风格
+- 不要把说明文字重新堆回图表下面
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 本地开发
+```bash
+cd /opt/GoldenHeat/web
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 构建
+```bash
+cd /opt/GoldenHeat/web
+npm run build
 ```
+
+## 发布
+```bash
+rsync -a --delete dist/ /var/www/lishengms/heat/
+```
+
+## 后续接手建议
+先读：
+1. `/opt/GoldenHeat/CLAUDE.md`
+2. `/opt/GoldenHeat/README.md`
+3. `src/pages/Dashboard.tsx`
+
+再决定要不要继续调首页。

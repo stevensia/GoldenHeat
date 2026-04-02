@@ -143,6 +143,8 @@ class MonthlySignal:
         df = pd.DataFrame([dict(r) for r in rows])
         for col in ["open", "high", "low", "close", "volume", "adj_close"]:
             df[col] = pd.to_numeric(df[col], errors="coerce")
+        # 过滤掉 close 为 NULL 的行（如当月未结束的数据）
+        df = df.dropna(subset=["close"]).reset_index(drop=True)
         return df
 
     def _calc_ma(self, df: pd.DataFrame) -> pd.DataFrame:

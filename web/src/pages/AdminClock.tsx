@@ -17,10 +17,14 @@ import {
   fetchAdminClockIndicators,
   postAdminClockAssess,
   postAdminClockConfirm,
+  authLogin,
+  authMe,
+  authOAuthConfig,
 } from '../api/client'
 import type { ClockAssessment, ClockIndicator } from '../api/types'
+import type { AuthUser, OAuthConfig } from '../api/client'
 
-const STORAGE_KEY = 'goldenheat_admin_token'
+const STORAGE_KEY = 'goldenheat_jwt'
 const PHASES = ['recovery', 'overheat', 'stagflation', 'recession'] as const
 const PHASE_LABELS: Record<string, string> = {
   recovery: '复苏', overheat: '过热',
@@ -45,9 +49,14 @@ const INDICATOR_NAMES: Record<string, string> = {
 
 export default function AdminClock() {
   const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEY) || '')
-  const [tokenInput, setTokenInput] = useState('')
   const [authed, setAuthed] = useState(false)
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null)
   const [market, setMarket] = useState<'cn' | 'us'>('cn')
+
+  // Login form
+  const [loginUsername, setLoginUsername] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [oauthConfig, setOauthConfig] = useState<OAuthConfig | null>(null)
 
   const [latest, setLatest] = useState<ClockAssessment | null>(null)
   const [history, setHistory] = useState<ClockAssessment[]>([])
@@ -85,20 +94,28 @@ export default function AdminClock() {
   }, [])
 
   const handleLogin = async () => {
-    if (!tokenInput.trim()) return
-    const t = tokenInput.trim()
+    if (!loginUsername.trim() || !loginPassword.trim()) return
+    setError('')
     try {
-      await fetchAdminClockLatest(t, 'cn')
-      localStorage.setItem(STORAGE_KEY, t); setToken(t); setAuthed(true)
-    } catch { setError('Token 验证失败') }
+      const result = await authLogin(loginUsername.trim(), loginPassword.trim())
+      localStorage.setItem(STORAGE_KEY, result.access_token)
+      setToken(result.access_token)
+      setCurrentUser(result.user)
+      setAuthed(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '登录失败')
+    }
   }
 
+  // 自动登录 — 检查 JWT 有效性
   useEffect(() => {
     if (token) {
-      fetchAdminClockLatest(token, 'cn')
-        .then(() => setAuthed(true))
+      authMe(token)
+        .then((user) => { setCurrentUser(user); setAuthed(true) })
         .catch(() => { localStorage.removeItem(STORAGE_KEY); setToken('') })
     }
+    // 加载 OAuth 配置
+    authOAuthConfig().then(setOauthConfig).catch(() => {})
   }, [token])
 
   useEffect(() => {
@@ -142,15 +159,44 @@ export default function AdminClock() {
               <p className="text-[11px] text-[#555] mt-2">三方加权判断 · 人工修正 · 历史追踪</p>
             </div>
             <div className="space-y-4">
-              <input type="password" placeholder="输入 Admin Token" value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                className="w-full rounded-lg px-4 py-3 text-sm text-[#e0e0e0] placeholder-[#555] outline-none focus:ring-1 focus:ring-[#eab308]"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }} />
+              {/* 用户名密码登录 */}
+              <div>
+                <input type="text" placeholder="用户名" value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && document.getElementById('pw-input')?.focus()}
+                  className="w-full rounded-lg px-4 py-3 text-sm text-[#e0e0e0] placeholder-[#555] outline-none focus:ring-1 focus:ring-[#eab308]"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }} />
+              </div>
+              <div>
+                <input id="pw-input" type="password" placeholder="密码" value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                  className="w-full rounded-lg px-4 py-3 text-sm text-[#e0e0e0] placeholder-[#555] outline-none focus:ring-1 focus:ring-[#eab308]"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }} />
+              </div>
               <button onClick={handleLogin}
                 className="w-full rounded-lg py-3 text-sm font-bold bg-[#eab308] text-[#0a0a14] hover:bg-[#facc15] transition-colors cursor-pointer">
                 登录
               </button>
+
+              {/* OAuth 登录按钮 */}
+              {oauthConfig?.enabled && (
+                <>
+                  <div className="flex items-center gap-3 text-[10px] text-[#555]">
+                    <div className="flex-1 h-px bg-white/5" />
+                    <span>或</span>
+                    <div className="flex-1 h-px bg-white/5" />
+                  </div>
+                  <button
+                    onClick={() => window.location.href = `${import.meta.env.DEV ? '/api' : '/heat/api'}/auth/oauth/authorize`}
+                    className="w-full rounded-lg py-3 text-sm font-medium text-[#e0e0e0] hover:bg-white/[0.04] transition-colors cursor-pointer flex items-center justify-center gap-2"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6.5" height="6.5" fill="#F35325"/><rect x="8.5" y="1" width="6.5" height="6.5" fill="#81BC06"/><rect x="1" y="8.5" width="6.5" height="6.5" fill="#05A6F0"/><rect x="8.5" y="8.5" width="6.5" height="6.5" fill="#FFBA08"/></svg>
+                    {oauthConfig.label || 'Microsoft 登录'}
+                  </button>
+                </>
+              )}
+
               {error && <div className="text-[12px] text-red-400 text-center">{error}</div>}
               <div className="text-center">
                 <a href="#/" className="text-[11px] text-[#555] hover:text-[#888] transition-colors">← 返回首页</a>
@@ -184,6 +230,11 @@ export default function AdminClock() {
           <div>
             <div className="text-[10px] text-[#555] uppercase tracking-widest">GoldenHeat Admin</div>
             <h1 className="text-lg font-bold text-[#e0e0e0] tracking-tight">美林时钟管理面板</h1>
+            {currentUser && (
+              <div className="text-[10px] text-[#555] mt-0.5">
+                {currentUser.display_name} · {currentUser.provider === 'local' ? '密码登录' : currentUser.provider === 'entra' ? 'Microsoft' : 'Token'} · {currentUser.role}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <a href="#/" className="text-[11px] text-[#555] hover:text-[#888] transition-colors">← 首页</a>

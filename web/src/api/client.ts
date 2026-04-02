@@ -77,6 +77,67 @@ export async function fetchClockSummary(): Promise<ClockSummary> {
   return fetchJSON<ClockSummary>('/clock/summary')
 }
 
+// === Auth API ===
+
+export interface AuthUser {
+  username: string
+  role: string
+  display_name: string
+  provider: string
+}
+
+export interface LoginResult {
+  access_token: string
+  token_type: string
+  expires_in: number
+  user: AuthUser
+}
+
+export interface OAuthConfig {
+  enabled: boolean
+  provider: string | null
+  label: string | null
+}
+
+/** 密码登录 → JWT */
+export async function authLogin(username: string, password: string): Promise<LoginResult> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: '登录失败' }))
+    throw new Error(err.detail || `登录失败: ${res.status}`)
+  }
+  return res.json()
+}
+
+/** 获取当前用户信息 */
+export async function authMe(token: string): Promise<AuthUser> {
+  const res = await fetch(`${API_BASE}/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('认证失败')
+  return res.json()
+}
+
+/** 获取 OAuth 配置 */
+export async function authOAuthConfig(): Promise<OAuthConfig> {
+  return fetchJSON<OAuthConfig>('/auth/oauth/config')
+}
+
+/** OAuth 回调换 JWT */
+export async function authOAuthCallback(code: string, state?: string): Promise<LoginResult> {
+  const res = await fetch(`${API_BASE}/auth/oauth/callback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, state }),
+  })
+  if (!res.ok) throw new Error('OAuth 认证失败')
+  return res.json()
+}
+
 // === Admin Clock API（需要 Bearer token） ===
 
 async function fetchJSONWithToken<T>(path: string, token: string): Promise<T> {

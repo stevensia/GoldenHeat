@@ -105,6 +105,70 @@ class PhaseResult:
             "description": phase_info["description"],
         }
 
+    def to_assessment_dict(self) -> dict:
+        """返回完整评估数据（含各指标详情），用于写入 clock_assessments 表"""
+        import json
+        base = self.to_dict()
+        base["position"] = calc_position(self.phase, self.confidence, self.gdp_slope, self.cpi_slope)
+        base["algo_details"] = json.dumps({
+            "gdp_slope": round(self.gdp_slope, 4),
+            "cpi_slope": round(self.cpi_slope, 4),
+            "pmi_value": self.pmi_value,
+            "pmi_confirm": self.pmi_confirm,
+            "m2_growth": self.m2_growth,
+            "gdp_growth": self.gdp_growth,
+            "credit_signal": self.credit_signal,
+        }, ensure_ascii=False)
+        return base
+
+
+# === 点位计算 ===
+# 将 phase + confidence + 斜率 映射为 0-12 时钟点位
+# 各阶段中心: recovery=0/12, overheat=3, stagflation=6, recession=9
+PHASE_RANGES = {
+    Phase.RECOVERY:    (10.5, 13.5),   # 以 12/0 为中心，跨越 10.5→13.5（mod 12）
+    Phase.OVERHEAT:    (1.5, 4.5),     # 以 3 为中心
+    Phase.STAGFLATION: (4.5, 7.5),     # 以 6 为中心
+    Phase.RECESSION:   (7.5, 10.5),    # 以 9 为中心
+}
+
+PHASE_CENTERS = {
+    Phase.RECOVERY: 12.0,
+    Phase.OVERHEAT: 3.0,
+    Phase.STAGFLATION: 6.0,
+    Phase.RECESSION: 9.0,
+}
+
+
+def calc_position(phase: Phase, confidence: float, gdp_slope: float, cpi_slope: float) -> float:
+    """将 phase + confidence + 斜率大小 转为 0-12 点位
+
+    在该阶段的范围内，用 confidence 和斜率决定精确位置：
+    - confidence 越高 → 越靠近中心
+    - 斜率越大 → 偏移方向由顺时针趋势决定
+    """
+    center = PHASE_CENTERS[phase]
+    lo, hi = PHASE_RANGES[phase]
+    half = (hi - lo) / 2  # 1.5
+
+    # 斜率强度（归一化到 0-1）
+    slope_mag = min(abs(gdp_slope) + abs(cpi_slope), 1.0)
+
+    # 偏移量：confidence 低或斜率弱时远离中心
+    # confidence 高且斜率强 → 偏移接近 0（在中心）
+    # confidence 低 → 偏移较大（靠近边界）
+    offset = half * (1.0 - confidence) * 0.6 + half * (1.0 - slope_mag) * 0.4
+
+    # 偏移方向：用 CPI 斜率正负决定（正=顺时针=+，负=逆时针=-）
+    if cpi_slope >= 0:
+        position = center + offset
+    else:
+        position = center - offset
+
+    # 归一化到 0-12
+    position = position % 12
+    return round(position, 1)
+
 
 class MerillClock:
     """美林时钟判断引擎

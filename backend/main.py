@@ -27,6 +27,7 @@ from backend.api.signals import router as signals_router
 from backend.api.merill import router as merill_router
 from backend.api.bullbear import router as bullbear_router
 from backend.api.admin import router as admin_router
+from backend.api.admin_clock import router as admin_clock_router
 from backend.api.valuation import router as valuation_router
 from backend.api.kline_history import router as kline_history_router
 from backend.api.macro import router as macro_router
@@ -105,6 +106,7 @@ app.include_router(signals_router, prefix="/api", tags=["Signals"])
 app.include_router(merill_router, prefix="/api", tags=["Merill Clock"])
 app.include_router(bullbear_router, prefix="/api", tags=["Bull Bear"])
 app.include_router(admin_router, prefix="/api", tags=["Admin"])
+app.include_router(admin_clock_router, prefix="/api", tags=["Admin Clock"])
 app.include_router(valuation_router, prefix="/api", tags=["Valuation"])
 app.include_router(kline_history_router, prefix="/api", tags=["K-Line"])
 app.include_router(macro_router, prefix="/api", tags=["Macro"])

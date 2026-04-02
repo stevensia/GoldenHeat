@@ -4,6 +4,7 @@ GET /api/dashboard
 返回: 美林时钟阶段 + 市场温度 + 所有标的信号摘要 + 牛熊状态
 """
 
+import json
 import logging
 
 from fastapi import APIRouter
@@ -52,6 +53,56 @@ def _get_merill_data_sources(market: str = "cn") -> list[dict]:
     return sources
 
 
+def _get_merill_from_assessment(market: str) -> dict | None:
+    """从 clock_assessments 表获取最新评估结果，转为前端所需格式"""
+    from backend.engines.merill_clock import PHASE_ALLOCATION, Phase
+
+    row = fetchone(
+        """SELECT * FROM clock_assessments
+           WHERE market = ? ORDER BY assessed_at DESC LIMIT 1""",
+        (market,),
+    )
+    if not row:
+        return None
+
+    phase_str = row["final_phase"]
+    try:
+        phase_enum = Phase(phase_str)
+    except ValueError:
+        return None
+
+    phase_info = PHASE_ALLOCATION[phase_enum]
+
+    # 解析 algo_details
+    algo_details = {}
+    if row["algo_details"]:
+        try:
+            algo_details = json.loads(row["algo_details"])
+        except json.JSONDecodeError:
+            pass
+
+    return {
+        "phase": phase_str,
+        "phase_label": phase_info["label"],
+        "confidence": round(row["final_confidence"], 3),
+        "gdp_trend": algo_details.get("gdp_trend", "up") if algo_details else "up",
+        "cpi_trend": algo_details.get("cpi_trend", "down") if algo_details else "down",
+        "gdp_slope": algo_details.get("gdp_slope", 0),
+        "cpi_slope": algo_details.get("cpi_slope", 0),
+        "pmi_value": algo_details.get("pmi_value"),
+        "pmi_confirm": algo_details.get("pmi_confirm"),
+        "m2_growth": algo_details.get("m2_growth"),
+        "gdp_growth": algo_details.get("gdp_growth"),
+        "credit_signal": algo_details.get("credit_signal"),
+        "transition_warning": None,
+        "best_asset": phase_info["best_asset"],
+        "allocation": phase_info["allocation"],
+        "description": phase_info["description"],
+        "position": round(row["final_position"], 1),
+        "source": "weighted",
+    }
+
+
 def _get_pe_percentile(symbol: str) -> float | None:
     """获取标的最新 PE 百分位"""
     row = fetchone(
@@ -95,10 +146,22 @@ async def get_dashboard():
     - 各市场牛熊状态
     """
     try:
-        # 美林时钟
-        clock = MerillClock()
-        merill_cn = clock.judge_phase(market="cn")
-        merill_dict = merill_cn.to_dict()
+        # 美林时钟 — 优先从 clock_assessments 获取（三方加权结果）
+        merill_dict = _get_merill_from_assessment("cn")
+        if merill_dict is None:
+            # 降级：无评估记录时走原有算法
+            clock = MerillClock()
+            merill_cn = clock.judge_phase(market="cn")
+            merill_dict = merill_cn.to_dict()
+            merill_dict["source"] = "algo"
+            # 补充 position 字段（算法模式也提供）
+            from backend.engines.merill_clock import calc_position, Phase
+            merill_dict["position"] = calc_position(
+                Phase(merill_dict["phase"]),
+                merill_dict["confidence"],
+                merill_dict["gdp_slope"],
+                merill_dict["cpi_slope"],
+            )
         merill_dict["data_sources"] = _get_merill_data_sources("cn")
 
         # 市场温度

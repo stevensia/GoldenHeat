@@ -18,6 +18,10 @@ export interface MerillClockData {
   best_asset: string
   allocation: Record<string, number>
   description: string
+  /** 0-12 时钟点位（三方加权或算法） */
+  position?: number
+  /** 数据来源: 'algo' | 'weighted' */
+  source?: string
 }
 
 // === 月线信号 ===

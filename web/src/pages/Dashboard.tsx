@@ -130,11 +130,13 @@ export default function Dashboard() {
     note: phase.note,
   }))
 
-  const currentPhaseMeta = PHASE_ORDER.find((phase) => phase.key === data.merill_clock.phase) || PHASE_ORDER[0]
-
   const confidenceData = [
     { name: '置信度', value: Math.round(data.merill_clock.confidence * 100) },
   ]
+
+  const currentPhaseMeta = PHASE_ORDER.find((phase) => phase.key === data.merill_clock.phase) || PHASE_ORDER[0]
+  const phaseProgress = confidenceData[0].value
+  const transitionText = getTransitionText(data.merill_clock.phase, phaseProgress)
 
   const allocationChartData = Object.entries(data.merill_clock.allocation)
     .sort((a, b) => b[1] - a[1])
@@ -205,31 +207,43 @@ export default function Dashboard() {
           <div className="mt-5 grid gap-5 xl:grid-cols-3">
             <div className="paper-card compact-card">
               <SectionEyebrow title="美林时钟" note={data.merill_clock.phase_label} />
-              <div className="mt-4 chart-wrap h-[320px]">
+              <div className="mt-4 chart-wrap h-[340px]">
                 <div className="relative h-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={phaseChartData} dataKey="value" innerRadius={78} outerRadius={112} stroke="rgba(255,255,255,0.88)" strokeWidth={2}>
+                      <Pie data={phaseChartData} dataKey="value" innerRadius={80} outerRadius={114} stroke="rgba(255,255,255,0.88)" strokeWidth={2}>
                         {phaseChartData.map((entry) => (
                           <Cell key={entry.name} fill={entry.fill} />
                         ))}
                       </Pie>
+                      <Pie
+                        data={buildTransitionArc(data.merill_clock.phase, phaseProgress)}
+                        dataKey="value"
+                        innerRadius={62}
+                        outerRadius={72}
+                        startAngle={90}
+                        endAngle={-270}
+                        stroke="none"
+                      >
+                        <Cell fill="rgba(17,24,39,0.06)" />
+                        <Cell fill={getPhaseColor(data.merill_clock.phase)} />
+                      </Pie>
                     </PieChart>
                   </ResponsiveContainer>
 
-                  <ClockLabel position="top" title="过热" asset="商品" active={currentPhaseMeta.key === 'overheat'} />
-                  <ClockLabel position="right" title="滞胀" asset="现金/防御" active={currentPhaseMeta.key === 'stagflation'} />
-                  <ClockLabel position="bottom" title="衰退" asset="债券" active={currentPhaseMeta.key === 'recession'} />
-                  <ClockLabel position="left" title="复苏" asset="股票" active={currentPhaseMeta.key === 'recovery'} />
+                  <ClockLabel position="top" title="过热" asset="商品" note="通胀升温" active={currentPhaseMeta.key === 'overheat'} />
+                  <ClockLabel position="right" title="滞胀" asset="现金/防御" note="增长承压" active={currentPhaseMeta.key === 'stagflation'} />
+                  <ClockLabel position="bottom" title="衰退" asset="债券" note="防御优先" active={currentPhaseMeta.key === 'recession'} />
+                  <ClockLabel position="left" title="复苏" asset="股票" note="增长修复" active={currentPhaseMeta.key === 'recovery'} />
 
                   <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
                     <div className="text-[11px] tracking-[0.22em] text-[var(--muted)]">当前阶段</div>
                     <div className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[var(--ink)]">{data.merill_clock.phase_label}</div>
+                    <div className="mt-1 text-xs text-[var(--muted-strong)]">{transitionText}</div>
                     <div className="mt-1 text-xs text-[var(--muted-strong)]">代表资产：{currentPhaseMeta.asset}</div>
-                    <div className="mt-1 text-xs text-[var(--muted-strong)]">置信度 {confidenceData[0].value}%</div>
                   </div>
 
-                  <ClockArrow phase={data.merill_clock.phase} color={getPhaseColor(data.merill_clock.phase)} />
+                  <ClockArrow phase={data.merill_clock.phase} color={getPhaseColor(data.merill_clock.phase)} progress={phaseProgress} />
                 </div>
               </div>
             </div>
@@ -610,33 +624,36 @@ function PositionMetric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function ClockLabel({ position, title, asset, active }: { position: 'top' | 'right' | 'bottom' | 'left'; title: string; asset: string; active: boolean }) {
+function ClockLabel({ position, title, asset, note, active }: { position: 'top' | 'right' | 'bottom' | 'left'; title: string; asset: string; note: string; active: boolean }) {
   const posClass =
     position === 'top'
-      ? 'left-1/2 top-2 -translate-x-1/2'
+      ? 'left-1/2 top-1 -translate-x-1/2'
       : position === 'right'
-        ? 'right-1 top-1/2 -translate-y-1/2 text-right'
+        ? 'right-0 top-1/2 -translate-y-1/2 text-right'
         : position === 'bottom'
-          ? 'left-1/2 bottom-2 -translate-x-1/2'
-          : 'left-1 top-1/2 -translate-y-1/2'
+          ? 'left-1/2 bottom-1 -translate-x-1/2'
+          : 'left-0 top-1/2 -translate-y-1/2'
 
   return (
     <div className={`pointer-events-none absolute ${posClass}`}>
-      <div className={`rounded-xl px-2 py-1.5 text-center ${active ? 'bg-[rgba(255,255,255,0.78)] shadow-[0_10px_24px_rgba(17,24,39,0.10)]' : 'bg-[rgba(255,255,255,0.48)]'}`}>
-        <div className="text-xs font-semibold text-[var(--ink)]">{title}</div>
-        <div className="mt-0.5 text-[10px] text-[var(--muted-strong)]">{asset}</div>
+      <div className={`rounded-xl px-2 py-1.5 text-center ${active ? 'bg-[rgba(255,255,255,0.82)] shadow-[0_10px_24px_rgba(17,24,39,0.10)]' : 'bg-[rgba(255,255,255,0.52)]'}`}>
+        <div className="text-xs font-semibold leading-none text-[var(--ink)]">{title}</div>
+        <div className="mt-0.5 text-[10px] leading-none text-[var(--muted-strong)]">{asset}</div>
+        <div className="mt-1 text-[10px] leading-none text-[var(--muted)]">{note}</div>
       </div>
     </div>
   )
 }
 
-function ClockArrow({ phase, color }: { phase: string; color: string }) {
-  const rotation = phase === 'recovery' ? -90 : phase === 'overheat' ? 0 : phase === 'stagflation' ? 90 : 180
+function ClockArrow({ phase, color, progress }: { phase: string; color: string; progress: number }) {
+  const baseRotation = phase === 'recovery' ? -90 : phase === 'overheat' ? 0 : phase === 'stagflation' ? 90 : 180
+  const offset = ((progress - 50) / 50) * 18
+  const rotation = baseRotation + offset
   return (
     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-      <div className="relative h-[150px] w-[150px]" style={{ transform: `rotate(${rotation}deg)` }}>
-        <div className="absolute left-1/2 top-1/2 h-[3px] w-[62px] -translate-y-1/2 rounded-full" style={{ background: color, transformOrigin: '0% 50%' }} />
-        <div className="absolute left-[104px] top-1/2 -translate-y-1/2" style={{ width: 0, height: 0, borderTop: '7px solid transparent', borderBottom: '7px solid transparent', borderLeft: `12px solid ${color}` }} />
+      <div className="relative h-[156px] w-[156px]" style={{ transform: `rotate(${rotation}deg)` }}>
+        <div className="absolute left-1/2 top-1/2 h-[3px] w-[70px] -translate-y-1/2 rounded-full" style={{ background: color, transformOrigin: '0% 50%' }} />
+        <div className="absolute left-[114px] top-1/2 -translate-y-1/2" style={{ width: 0, height: 0, borderTop: '7px solid transparent', borderBottom: '7px solid transparent', borderLeft: `12px solid ${color}` }} />
         <div className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-sm" style={{ background: color }} />
       </div>
     </div>
@@ -781,6 +798,22 @@ function marketTempByTab(items: TemperatureData[], tab: MarketTab) {
   if (!subset.length) return '-'
   const avg = subset.reduce((sum, item) => sum + item.temperature, 0) / subset.length
   return avg.toFixed(0)
+}
+
+function buildTransitionArc(phase: string, progress: number) {
+  const clamped = Math.max(8, Math.min(96, progress))
+  return [
+    { name: '剩余', value: 100 - clamped },
+    { name: phase, value: clamped },
+  ]
+}
+
+function getTransitionText(phase: string, progress: number) {
+  const pct = Math.max(0, Math.min(100, Math.round(progress)))
+  const toward = phase === 'recovery' ? '向过热推进' : phase === 'overheat' ? '向滞胀推进' : phase === 'stagflation' ? '向衰退推进' : '等待复苏确认'
+  if (pct >= 75) return `周期后段 · ${toward}`
+  if (pct >= 45) return `周期中段 · ${toward}`
+  return `周期前段 · 刚进入${phase === 'recovery' ? '复苏' : phase === 'overheat' ? '过热' : phase === 'stagflation' ? '滞胀' : '衰退'}`
 }
 
 function buildSummary({ phaseLabel, bestAsset, averageTemp, hottestAsset, strongestSignal, strongestSignalLevel, bearCount, bullCount, totalCount, transitionWarning, description }: any) {

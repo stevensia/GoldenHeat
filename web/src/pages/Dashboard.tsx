@@ -39,23 +39,23 @@ const MARKET_MAP: Record<string, MarketTab> = {
 const MARKET_TITLES: Record<MarketTab, { title: string; deck: string }> = {
   all: {
     title: 'GoldenHeat 市场总览',
-    deck: '把宏观周期、市场热度、资产配置、趋势结构和牛熊分界，压缩成一个适合中周期决策的首页。',
+    deck: '当前处于中周期配置视角：首页优先呈现宏观周期、市场热度、资产配置、牛熊分界和趋势结构，减少冗余说明，把判断直接放进图表里。',
   },
   us: {
     title: '美股市场总览',
-    deck: '聚焦美股风险偏好、结构强弱和配置节奏，优先呈现更适合做决策的图表而不是堆砌说明。',
+    deck: '当前聚焦美股风险偏好、热度和趋势结构，首页以图表优先，把关键结论合并进交互信息中。',
   },
   cn: {
     title: 'A股市场总览',
-    deck: '围绕 A 股周期位置、热度变化、趋势强弱和仓位建议，帮助快速判断当前处于什么阶段。',
+    deck: '当前聚焦 A 股所处阶段、热度水平和牛熊边界，减少说明块，强调图表直读。',
   },
   hk: {
     title: '港股市场总览',
-    deck: '把港股波动翻译成可读的热度、结构和配置语言，降低只凭直觉判断的噪声。',
+    deck: '当前聚焦港股估值修复与趋势变化，用更紧凑的图表布局呈现判断。',
   },
   crypto: {
     title: '加密市场总览',
-    deck: '用图表方式呈现加密资产热度、趋势结构和仓位区间，避免情绪驱动决策。',
+    deck: '当前聚焦加密市场热度、趋势强弱和配置节奏，把说明收进 tooltip，首页更利落。',
   },
 }
 
@@ -67,14 +67,6 @@ const PHASE_ORDER = [
 ] as const
 
 const ALLOCATION_COLORS = ['#b45a3c', '#1f7a69', '#d4a24c', '#6b7280', '#d9795f', '#6ea699']
-
-const tooltipStyle = {
-  border: '1px solid rgba(17,24,39,0.08)',
-  borderRadius: '16px',
-  background: 'rgba(255,255,255,0.96)',
-  color: '#17181c',
-  boxShadow: '0 16px 40px rgba(17,24,39,0.10)',
-}
 
 function getMarket(sym: string): MarketTab {
   if (MARKET_MAP[sym]) return MARKET_MAP[sym]
@@ -134,7 +126,12 @@ export default function Dashboard() {
     name: phase.label,
     value: 25,
     fill: data.merill_clock.phase === phase.key ? phase.color : 'rgba(23,24,28,0.10)',
+    note: phase.note,
   }))
+
+  const confidenceData = [
+    { name: '置信度', value: Math.round(data.merill_clock.confidence * 100) },
+  ]
 
   const allocationChartData = Object.entries(data.merill_clock.allocation)
     .sort((a, b) => b[1] - a[1])
@@ -142,6 +139,7 @@ export default function Dashboard() {
       name,
       value: Math.round(value * 100),
       fill: ALLOCATION_COLORS[index % ALLOCATION_COLORS.length],
+      desc: `${name} 当前建议配置 ${Math.round(value * 100)}%`,
     }))
 
   const temperatureChartData = [...filteredTemps]
@@ -150,6 +148,7 @@ export default function Dashboard() {
     .map((item) => ({
       name: item.name,
       temperature: Number(item.temperature.toFixed(0)),
+      desc: `${item.name} 当前热度 ${Math.round(item.temperature)}°，${item.description}`,
     }))
 
   const bullBearMetricData = [...filteredBullBear]
@@ -160,6 +159,7 @@ export default function Dashboard() {
       priceVsMa12: Number(item.price_vs_ma12_pct.toFixed(1)),
       ma12VsMa24: Number(item.ma12_vs_ma24_pct.toFixed(1)),
       phase: item.phase_label,
+      desc: `${item.name} · ${item.phase_label} · 现价相对年线 ${item.price_vs_ma12_pct.toFixed(1)}%，年线相对两年线 ${item.ma12_vs_ma24_pct.toFixed(1)}%，建议仓位 ${item.position_range}`,
     }))
 
   const trendChartData = [...filteredSignals]
@@ -174,60 +174,104 @@ export default function Dashboard() {
         MA10: Number((((item.ma10 ?? current) / current) * 100).toFixed(1)),
         MA20: Number((((item.ma20 ?? current) / current) * 100).toFixed(1)),
         score: Number(item.score.toFixed(0)),
+        desc: `${item.name} · ${item.level_label} · 趋势 ${item.trend_label} · 回调 ${item.pullback_label} · 评分 ${item.score.toFixed(0)}`,
       }
     })
+
+  const summaryText = buildSummary({
+    phaseLabel: data.merill_clock.phase_label,
+    bestAsset: data.merill_clock.best_asset,
+    averageTemp,
+    hottestAsset: hottestAsset?.name,
+    strongestSignal: strongestSignal?.name,
+    strongestSignalLevel: strongestSignal?.level_label,
+    bearCount,
+    bullCount,
+    totalCount: filteredBullBear.length,
+    transitionWarning: data.merill_clock.transition_warning,
+    description: data.merill_clock.description,
+  })
 
   return (
     <div className="page-shell">
       <Navbar activeTab={tab} onTabChange={setTab} />
 
       <main className="mx-auto max-w-[1320px] px-4 pb-16 pt-6 sm:px-6 lg:px-8">
-        <section className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
-          <div className="paper-card paper-hero overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(186,94,61,0.15),transparent_35%),radial-gradient(circle_at_80%_20%,rgba(25,120,104,0.14),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.56),rgba(255,255,255,0.22))]" />
-            <div className="relative">
-              <div className="mb-5 flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
-                <span>GoldenHeat</span>
-                <span className="h-1 w-1 rounded-full bg-[var(--accent)]" />
-                <span>{updated}</span>
+        <section>
+          <SectionHeader title="顶部核心图表" subtitle="把最关键的三块图表直接放到顶部，说明信息收进 tooltip，不再占下方空间。" />
+          <div className="mt-5 grid gap-5 xl:grid-cols-3">
+            <div className="paper-card compact-card">
+              <SectionEyebrow title="美林时钟" note={data.merill_clock.phase_label} />
+              <div className="mt-4 chart-wrap h-[290px]">
+                <div className="relative h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={phaseChartData} dataKey="value" innerRadius={78} outerRadius={112} stroke="rgba(255,255,255,0.85)" strokeWidth={2}>
+                        {phaseChartData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Pie data={[{ name: '空白', value: 100 - confidenceData[0].value }, { name: '置信度', value: confidenceData[0].value }]} dataKey="value" innerRadius={54} outerRadius={66} startAngle={90} endAngle={-270} stroke="none">
+                        <Cell fill="rgba(17,24,39,0.08)" />
+                        <Cell fill={getPhaseColor(data.merill_clock.phase)} />
+                      </Pie>
+                      <Tooltip content={<PhaseTooltip currentPhase={data.merill_clock.phase_label} confidence={confidenceData[0].value} bestAsset={data.merill_clock.best_asset} description={data.merill_clock.description} warning={data.merill_clock.transition_warning} />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                    <div className="text-xs tracking-[0.22em] text-[var(--muted)]">当前阶段</div>
+                    <div className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[var(--ink)]">{data.merill_clock.phase_label}</div>
+                    <div className="mt-2 text-sm text-[var(--muted-strong)]">置信度 {confidenceData[0].value}%</div>
+                  </div>
+                </div>
               </div>
+            </div>
 
-              <h1 className="max-w-3xl text-4xl font-semibold leading-none tracking-[-0.04em] text-[var(--ink)] sm:text-5xl lg:text-[4.4rem]">
-                {titlePack.title}
-              </h1>
-              <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--muted-strong)] sm:text-[15px]">
-                {titlePack.deck}
-              </p>
+            <div className="paper-card compact-card">
+              <SectionEyebrow title="市场热度" note={`${averageTemp.toFixed(0)}°`} />
+              <div className="mt-4 chart-wrap h-[290px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={temperatureChartData} layout="vertical" margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" horizontal={false} />
+                    <XAxis type="number" domain={[0, 100]} tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={72} tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<TextTooltip title="市场热度说明" valueKey="temperature" unit="°" dataKey="desc" />} />
+                    <Bar dataKey="temperature" radius={[0, 10, 10, 0]}>
+                      {temperatureChartData.map((entry) => (
+                        <Cell key={entry.name} fill={temperatureBarColor(entry.temperature)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
 
-              <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                <InsightStrip label="当前周期" value={data.merill_clock.phase_label} hint={`置信度 ${Math.round(data.merill_clock.confidence * 100)}%`} />
-                <InsightStrip label="市场热度" value={`${averageTemp.toFixed(0)}°`} hint={describeTemperature(averageTemp)} />
-                <InsightStrip label="最强信号" value={strongestSignal?.name || '暂无'} hint={strongestSignal ? `评分 ${strongestSignal.score.toFixed(0)} · ${strongestSignal.level_label}` : '等待数据'} />
+            <div className="paper-card compact-card">
+              <SectionEyebrow title="资产分配" note={data.merill_clock.best_asset} />
+              <div className="mt-4 chart-wrap h-[290px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={allocationChartData} dataKey="value" nameKey="name" innerRadius={64} outerRadius={102} paddingAngle={3} stroke="rgba(255,255,255,0.8)" strokeWidth={2}>
+                      {allocationChartData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<TextTooltip title="资产分配说明" valueKey="value" unit="%" dataKey="desc" />} />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>
+        </section>
 
-          <div className="grid gap-5">
-            <div className="paper-card">
-              <SectionEyebrow title="关键信息" note="一屏速览" />
-              <div className="mt-4 space-y-4">
-                <MetricRow label="覆盖标的" value={`${Math.max(filteredTemps.length, filteredSignals.length, filteredBullBear.length)} 个`} />
-                <MetricRow label="最热资产" value={hottestAsset ? `${hottestAsset.name} ${Math.round(hottestAsset.temperature)}°` : '-'} />
-                <MetricRow label="牛市阶段" value={`${bullCount} 个`} tone="positive" />
-                <MetricRow label="熊市阶段" value={`${bearCount} 个`} tone="negative" />
-                <MetricRow label="超配资产" value={data.merill_clock.best_asset} />
-              </div>
+        <section className="mt-6">
+          <div className="paper-card summary-card">
+            <div className="flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
+              <span>{titlePack.title}</span>
+              <span className="h-1 w-1 rounded-full bg-[var(--accent)]" />
+              <span>{updated}</span>
             </div>
-
-            <div className="paper-card bg-[linear-gradient(180deg,rgba(17,24,39,0.02),rgba(17,24,39,0.08))]">
-              <SectionEyebrow title="模型说明" note="当前判断" />
-              <p className="mt-4 text-[15px] leading-7 text-[var(--muted-strong)]">{data.merill_clock.description}</p>
-              {data.merill_clock.transition_warning ? (
-                <div className="mt-4 rounded-2xl border border-[rgba(186,94,61,0.22)] bg-[rgba(186,94,61,0.08)] px-4 py-3 text-sm leading-6 text-[var(--ink)]">
-                  {data.merill_clock.transition_warning}
-                </div>
-              ) : null}
-            </div>
+            <p className="mt-4 text-[15px] leading-7 text-[var(--muted-strong)]">{summaryText}</p>
           </div>
         </section>
 
@@ -238,116 +282,9 @@ export default function Dashboard() {
           <OverviewCard label="牛熊占比" value={`${bullCount}/${filteredBullBear.length || 0}`} detail="牛市阶段标的 / 总标的" />
         </section>
 
-        <section className="mt-10">
-          <SectionHeader title="顶部核心图表" subtitle="把美林时钟、市场热度、资产分配三块最关键的 chart 直接顶到首屏下方。" />
-          <div className="mt-5 grid gap-5 xl:grid-cols-3">
-            <div className="paper-card">
-              <SectionEyebrow title="美林时钟圆形图" note="宏观周期" />
-              <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_0.95fr] xl:grid-cols-1 2xl:grid-cols-[1fr_0.95fr]">
-                <div className="chart-wrap h-[280px]">
-                  <div className="relative h-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={phaseChartData} dataKey="value" innerRadius={74} outerRadius={108} stroke="rgba(255,255,255,0.85)" strokeWidth={2}>
-                          {phaseChartData.map((entry) => (
-                            <Cell key={entry.name} fill={entry.fill} />
-                          ))}
-                        </Pie>
-                        <Pie data={[{ name: '剩余', value: 100 }, { name: '置信度', value: Math.round(data.merill_clock.confidence * 100) }]} dataKey="value" innerRadius={52} outerRadius={64} startAngle={90} endAngle={-270} stroke="none">
-                          <Cell fill="rgba(17,24,39,0.08)" />
-                          <Cell fill={getPhaseColor(data.merill_clock.phase)} />
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                      <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">当前阶段</div>
-                      <div className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[var(--ink)]">{data.merill_clock.phase_label}</div>
-                      <div className="mt-2 text-sm text-[var(--muted-strong)]">置信度 {Math.round(data.merill_clock.confidence * 100)}%</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {PHASE_ORDER.map((phase) => {
-                    const active = data.merill_clock.phase === phase.key
-                    return (
-                      <div key={phase.key} className={`rounded-[20px] border px-4 py-3 ${active ? 'border-[rgba(17,24,39,0.18)] bg-[rgba(255,255,255,0.6)] shadow-[0_14px_30px_rgba(16,24,40,0.06)]' : 'border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.34)]'}`}>
-                        <div className="flex items-center gap-3">
-                          <span className="h-3 w-3 rounded-full" style={{ background: phase.color }} />
-                          <span className="font-semibold text-[var(--ink)]">{phase.label}</span>
-                        </div>
-                        <div className="mt-2 text-sm leading-6 text-[var(--muted-strong)]">{phase.note}</div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="paper-card">
-              <SectionEyebrow title="市场热度图" note="热度排名" />
-              <div className="mt-5 chart-wrap h-[280px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={temperatureChartData} layout="vertical" margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" horizontal={false} />
-                    <XAxis type="number" domain={[0, 100]} tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" width={68} tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(value) => [`${value ?? '-'}°`, '热度']} contentStyle={tooltipStyle} />
-                    <Bar dataKey="temperature" radius={[0, 10, 10, 0]}>
-                      {temperatureChartData.map((entry) => (
-                        <Cell key={entry.name} fill={temperatureBarColor(entry.temperature)} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="mt-4 grid grid-cols-3 gap-3 text-center text-xs text-[var(--muted)]">
-                <MiniTag title="0–30" text="偏冷" />
-                <MiniTag title="30–60" text="中性" />
-                <MiniTag title="60–100" text="偏热" />
-              </div>
-            </div>
-
-            <div className="paper-card">
-              <SectionEyebrow title="资产分配图" note="建议配置" />
-              <div className="mt-5 grid gap-5 lg:grid-cols-[0.9fr_1.1fr] xl:grid-cols-1 2xl:grid-cols-[0.9fr_1.1fr]">
-                <div className="chart-wrap h-[280px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={allocationChartData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={98} paddingAngle={3} stroke="rgba(255,255,255,0.8)" strokeWidth={2}>
-                        {allocationChartData.map((entry) => (
-                          <Cell key={entry.name} fill={entry.fill} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => [`${value ?? '-'}%`, '配置']} contentStyle={tooltipStyle} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="space-y-4">
-                  {allocationChartData.map((item) => (
-                    <div key={item.name}>
-                      <div className="mb-2 flex items-center justify-between gap-4 text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="h-2.5 w-2.5 rounded-full" style={{ background: item.fill }} />
-                          <span className="font-medium text-[var(--ink)]">{item.name}</span>
-                        </div>
-                        <span className="font-mono text-[var(--ink)]">{item.value}%</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-[rgba(17,24,39,0.08)]">
-                        <div className="h-2 rounded-full" style={{ width: `${item.value}%`, background: item.fill }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <section className="mt-10 grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
           <div className="paper-card">
-            <SectionHeader title="牛熊分界指标" subtitle="用价格相对年线、年线相对两年线两个关键指标，展示当前处于牛熊哪个区间。" />
+            <SectionHeader title="牛熊分界指标" subtitle="看价格相对年线、年线相对两年线两个关键指标，tooltip 里合并解释依据。" />
             {bullBearMetricData.length > 0 ? (
               <div className="mt-6 chart-wrap h-[340px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -355,7 +292,7 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" vertical={false} />
                     <XAxis dataKey="name" tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value ?? '-'}%`, '指标']} />
+                    <Tooltip content={<BullBearTooltip />} />
                     <Bar dataKey="priceVsMa12" name="现价 vs 年线" fill="var(--accent)" radius={[8, 8, 0, 0]} />
                     <Bar dataKey="ma12VsMa24" name="年线 vs 两年线" fill="#1f7a69" radius={[8, 8, 0, 0]} />
                   </BarChart>
@@ -367,23 +304,7 @@ export default function Dashboard() {
           </div>
 
           <div className="paper-card">
-            <SectionHeader title="判断依据" subtitle="牛熊分界不是一句话，而是要看结构依据。" />
-            <div className="mt-6 space-y-4">
-              <LegendRow color="var(--accent)" title="现价 vs 年线" desc="价格站上 MA12 往往代表趋势占优；跌破年线则进入更谨慎阶段。" />
-              <LegendRow color="#1f7a69" title="年线 vs 两年线" desc="MA12 上穿 MA24 时，说明更长期结构开始转强。" />
-              <LegendRow color="#d4a24c" title="仓位区间" desc="结合趋势强弱和阶段位置，给出 20–50%、50–80%、80–100% 等区间建议。" />
-              <div className="rounded-[22px] border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.46)] px-4 py-4">
-                <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">当前结论</div>
-                <div className="mt-2 text-xl font-semibold text-[var(--ink)]">{data.merill_clock.phase_label} · {data.merill_clock.best_asset}</div>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted-strong)]">{data.merill_clock.description}</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-10 grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
-          <div className="paper-card">
-            <SectionHeader title="趋势结构图" subtitle="当前接口没有完整 K 线序列，这里先用现价与 MA5 / MA10 / MA20 的相对结构做趋势图展示。" />
+            <SectionHeader title="趋势结构图" subtitle="当前接口没有完整 K 线序列，先用现价与 MA5 / MA10 / MA20 的相对结构展示趋势。" />
             {trendChartData.length > 0 ? (
               <div className="mt-6 chart-wrap h-[340px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -391,7 +312,7 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" vertical={false} />
                     <XAxis dataKey="name" tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} domain={['dataMin - 8', 'dataMax + 8']} />
-                    <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value ?? '-'}%`, '相对位置']} />
+                    <Tooltip content={<TrendTooltip />} />
                     <Line type="monotone" dataKey="现价" stroke="var(--accent)" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                     <Line type="monotone" dataKey="MA5" stroke="#1f7a69" strokeWidth={2} dot={{ r: 2.5 }} />
                     <Line type="monotone" dataKey="MA10" stroke="#d4a24c" strokeWidth={2} dot={{ r: 2.5 }} />
@@ -403,7 +324,9 @@ export default function Dashboard() {
               <EmptyState text="当前市场暂无趋势图数据。" />
             )}
           </div>
+        </section>
 
+        <section className="mt-10 grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
           <div className="paper-card">
             <SectionHeader title="趋势评分面积图" subtitle="把最强信号前六名按总分排开，便于一眼看出强弱梯队。" />
             {trendChartData.length > 0 ? (
@@ -419,7 +342,7 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" vertical={false} />
                     <XAxis dataKey="name" tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} />
-                    <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value ?? '-'} 分`, '评分']} />
+                    <Tooltip content={<TextTooltip title="趋势评分说明" valueKey="score" unit="分" dataKey="desc" />} />
                     <Area type="monotone" dataKey="score" stroke="var(--accent)" fill="url(#scoreFill)" strokeWidth={3} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -428,28 +351,28 @@ export default function Dashboard() {
               <EmptyState text="当前市场暂无评分趋势图。" />
             )}
           </div>
+
+          <div className="paper-card">
+            <SectionHeader title="市场温度卡片" subtitle="详细温度明细仍保留在下方，方便继续展开看每个标的。" />
+            {filteredTemps.length > 0 ? (
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
+                {filteredTemps.slice(0, 4).map((item) => (
+                  <TemperatureCard key={item.symbol} item={item} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState text="当前市场暂无温度数据。" />
+            )}
+          </div>
         </section>
 
         <section className="mt-10">
-          <SectionHeader title="市场温度卡片" subtitle="保留温度功能，但放到下方做详细浏览，不再挤占首屏。" />
-          {filteredTemps.length > 0 ? (
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-              {filteredTemps.map((item) => (
-                <TemperatureCard key={item.symbol} item={item} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState text="当前市场暂无温度数据。" />
-          )}
-        </section>
-
-        <section className="mt-10">
-          <SectionHeader title="月线信号清单" subtitle="继续保留月线信号明细，方便你往下看每个标的结构。" />
+          <SectionHeader title="月线信号清单" subtitle="继续保留月线信号明细，方便往下看每个标的结构。" />
           {filteredSignals.length > 0 ? <SignalRoster data={filteredSignals} /> : <EmptyState text="当前市场暂无月线信号。" />}
         </section>
 
         <section className="mt-10">
-          <SectionHeader title="牛熊仓位建议" subtitle="继续保留卡片式仓位建议，和上面的分界图形成上下呼应。" />
+          <SectionHeader title="牛熊仓位建议" subtitle="继续保留卡片式仓位建议，和上面的分界图形成呼应。" />
           {filteredBullBear.length > 0 ? (
             <div className="mt-5 grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
               {filteredBullBear.map((item) => (
@@ -486,41 +409,12 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
   )
 }
 
-function InsightStrip({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div className="rounded-[22px] border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.46)] px-4 py-4 backdrop-blur-sm">
-      <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">{label}</div>
-      <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</div>
-      <div className="mt-2 text-xs leading-5 text-[var(--muted)]">{hint}</div>
-    </div>
-  )
-}
-
-function MetricRow({ label, value, tone = 'default' }: { label: string; value: string; tone?: 'default' | 'positive' | 'negative' }) {
-  const toneClass = tone === 'positive' ? 'text-emerald-700' : tone === 'negative' ? 'text-rose-700' : 'text-[var(--ink)]'
-  return (
-    <div className="flex items-center justify-between gap-4 border-b border-[rgba(17,24,39,0.08)] pb-3 last:border-b-0 last:pb-0">
-      <span className="text-sm text-[var(--muted-strong)]">{label}</span>
-      <span className={`text-sm font-semibold ${toneClass}`}>{value}</span>
-    </div>
-  )
-}
-
 function OverviewCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
     <div className="paper-card-sm">
       <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">{label}</div>
       <div className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[var(--ink)]">{value}</div>
       <div className="mt-2 text-sm leading-6 text-[var(--muted)]">{detail}</div>
-    </div>
-  )
-}
-
-function MiniTag({ title, text }: { title: string; text: string }) {
-  return (
-    <div>
-      <div className="font-semibold text-[var(--ink)]">{title}</div>
-      <div className="mt-1">{text}</div>
     </div>
   )
 }
@@ -689,20 +583,72 @@ function PositionMetric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function LegendRow({ color, title, desc }: { color: string; title: string; desc: string }) {
+function Tag({ children }: { children: ReactNode }) {
+  return <span className="rounded-full border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.5)] px-3 py-1 text-xs text-[var(--muted-strong)]">{children}</span>
+}
+
+function BaseTooltip({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="rounded-[20px] border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.44)] px-4 py-4">
-      <div className="flex items-center gap-3">
-        <span className="h-3 w-3 rounded-full" style={{ background: color }} />
-        <span className="font-semibold text-[var(--ink)]">{title}</span>
-      </div>
-      <p className="mt-2 text-sm leading-6 text-[var(--muted-strong)]">{desc}</p>
+    <div className="max-w-[280px] rounded-2xl border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.96)] px-4 py-3 shadow-[0_16px_40px_rgba(17,24,39,0.10)]">
+      <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">{title}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--ink)]">{children}</div>
     </div>
   )
 }
 
-function Tag({ children }: { children: ReactNode }) {
-  return <span className="rounded-full border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.5)] px-3 py-1 text-xs text-[var(--muted-strong)]">{children}</span>
+function TextTooltip({ active, payload, label, title, valueKey, unit = '', dataKey = 'desc' }: any) {
+  if (!active || !payload?.length) return null
+  const datum = payload[0]?.payload || {}
+  const value = datum[valueKey]
+  return (
+    <BaseTooltip title={title}>
+      <div className="font-semibold">{label || datum.name}</div>
+      {value !== undefined ? <div className="mt-1">当前值：{value}{unit}</div> : null}
+      {datum[dataKey] ? <div className="mt-1 text-[var(--muted-strong)]">{datum[dataKey]}</div> : null}
+    </BaseTooltip>
+  )
+}
+
+function PhaseTooltip({ active, payload, currentPhase, confidence, bestAsset, description, warning }: any) {
+  if (!active || !payload?.length) return null
+  const datum = payload[0]?.payload || {}
+  return (
+    <BaseTooltip title="美林时钟说明">
+      <div className="font-semibold">{datum.name}</div>
+      <div className="mt-1">当前阶段：{currentPhase} · 置信度 {confidence}%</div>
+      <div className="mt-1">推荐超配：{bestAsset}</div>
+      {datum.note ? <div className="mt-1 text-[var(--muted-strong)]">象限含义：{datum.note}</div> : null}
+      <div className="mt-1 text-[var(--muted-strong)]">{description}</div>
+      {warning ? <div className="mt-1 text-[var(--accent)]">{warning}</div> : null}
+    </BaseTooltip>
+  )
+}
+
+function BullBearTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
+  const datum = payload[0]?.payload || {}
+  return (
+    <BaseTooltip title="牛熊分界说明">
+      <div className="font-semibold">{label || datum.name}</div>
+      <div className="mt-1">现价 vs 年线：{datum.priceVsMa12}%</div>
+      <div className="mt-1">年线 vs 两年线：{datum.ma12VsMa24}%</div>
+      <div className="mt-1">阶段：{datum.phase}</div>
+      {datum.desc ? <div className="mt-1 text-[var(--muted-strong)]">{datum.desc}</div> : null}
+    </BaseTooltip>
+  )
+}
+
+function TrendTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
+  const datum = payload[0]?.payload || {}
+  return (
+    <BaseTooltip title="趋势结构说明">
+      <div className="font-semibold">{label || datum.name}</div>
+      <div className="mt-1">现价：{datum['现价']}%</div>
+      <div className="mt-1">MA5：{datum.MA5}% · MA10：{datum.MA10}% · MA20：{datum.MA20}%</div>
+      {datum.desc ? <div className="mt-1 text-[var(--muted-strong)]">{datum.desc}</div> : null}
+    </BaseTooltip>
+  )
 }
 
 function Loading() {
@@ -783,4 +729,16 @@ function getPhaseTone(phase: BullBearData['phase']) {
     default:
       return { color: '#334155', bg: 'rgba(148,163,184,0.2)' }
   }
+}
+
+function buildSummary({ phaseLabel, bestAsset, averageTemp, hottestAsset, strongestSignal, strongestSignalLevel, bearCount, bullCount, totalCount, transitionWarning, description }: any) {
+  const parts = [
+    `当前市场处于${phaseLabel}，模型倾向超配${bestAsset}`,
+    `整体热度约 ${averageTemp.toFixed(0)}°`,
+    hottestAsset ? `最热资产是${hottestAsset}` : '',
+    strongestSignal ? `最强月线信号来自${strongestSignal}（${strongestSignalLevel}）` : '',
+    totalCount ? `牛市阶段 ${bullCount} 个、熊市阶段 ${bearCount} 个` : '',
+    transitionWarning || description,
+  ].filter(Boolean)
+  return parts.join('；') + '。'
 }

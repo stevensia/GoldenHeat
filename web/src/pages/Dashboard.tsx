@@ -251,35 +251,48 @@ export default function Dashboard() {
             <div className="paper-card compact-card">
               <SectionEyebrow title="市场热度" note={`${averageTemp.toFixed(0)}°`} />
               <div className="mt-4 chart-wrap h-[290px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={temperatureChartData} layout="vertical" margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" horizontal={false} />
-                    <XAxis type="number" domain={[0, 100]} tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" width={72} tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip cursor={false} content={<TextTooltip title="市场热度说明" valueKey="temperature" unit="°" dataKey="desc" />} />
-                    <Bar dataKey="temperature" radius={[0, 10, 10, 0]}>
-                      {temperatureChartData.map((entry) => (
-                        <Cell key={entry.name} fill={temperatureBarColor(entry.temperature)} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="relative h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={temperatureChartData} layout="vertical" margin={{ top: 32, right: 8, left: 8, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(17,24,39,0.08)" horizontal={false} />
+                      <XAxis type="number" domain={[0, 100]} tick={{ fill: '#7d7468', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="name" width={72} tick={{ fill: '#5f584d', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <Tooltip cursor={false} content={<CompactTooltip title="市场热度提示" text="悬停查看标的热度，颜色越暖表示越热。" />} />
+                      <Bar dataKey="temperature" radius={[0, 10, 10, 0]}>
+                        {temperatureChartData.map((entry) => (
+                          <Cell key={entry.name} fill={temperatureBarColor(entry.temperature)} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute left-3 top-2">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">综合热度</div>
+                    <div className="mt-1 text-3xl font-semibold tracking-[-0.05em] text-[var(--ink)]">{averageTemp.toFixed(0)}°</div>
+                  </div>
+                </div>
               </div>
             </div>
 
             <div className="paper-card compact-card">
               <SectionEyebrow title="资产分配" note={data.merill_clock.best_asset} />
               <div className="mt-4 chart-wrap h-[290px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={allocationChartData} dataKey="value" nameKey="name" innerRadius={64} outerRadius={102} paddingAngle={3} stroke="rgba(255,255,255,0.8)" strokeWidth={2}>
-                      {allocationChartData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip cursor={false} content={<TextTooltip title="资产分配说明" valueKey="value" unit="%" dataKey="desc" />} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <div className="relative h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={allocationChartData} dataKey="value" nameKey="name" innerRadius={64} outerRadius={102} paddingAngle={3} stroke="rgba(255,255,255,0.8)" strokeWidth={2}>
+                        {allocationChartData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip cursor={false} content={<CompactTooltip title="资产分配提示" text="悬停查看单项占比，中心显示当前超配方向。" />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">当前超配</div>
+                    <div className="mt-1 text-2xl font-semibold tracking-[-0.05em] text-[var(--ink)]">{data.merill_clock.best_asset}</div>
+                    <div className="mt-1 text-xs text-[var(--muted-strong)]">{allocationChartData[0]?.value ?? '-'}% 最高配置</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -682,6 +695,15 @@ function TextTooltip({ active, payload, label, title, valueKey, unit = '', dataK
       <div className="font-semibold">{label || datum.name}</div>
       {value !== undefined ? <div className="mt-1">当前值：{value}{unit}</div> : null}
       {datum[dataKey] ? <div className="mt-1 text-[var(--muted-strong)]">{datum[dataKey]}</div> : null}
+    </BaseTooltip>
+  )
+}
+
+function CompactTooltip({ active, title, text }: any) {
+  if (!active) return null
+  return (
+    <BaseTooltip title={title}>
+      <div className="text-[var(--muted-strong)]">{text}</div>
     </BaseTooltip>
   )
 }

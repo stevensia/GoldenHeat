@@ -26,8 +26,14 @@ export default function TemperatureGauge({ data }: Props) {
   const color = getColor(temp)
 
   return (
-    <div className="bg-[#111122] border border-[#1e1e3a] rounded-2xl p-5">
+    <div className="bg-[#111122] border border-[#1e1e3a] rounded-2xl p-6 shadow-lg shadow-black/30">
       <h3 className="text-sm font-medium text-[#888] mb-3 tracking-wide">市场温度</h3>
+
+      {/* 大温度数字居中 */}
+      <div className="text-center mb-4">
+        <span className="text-4xl font-bold" style={{ color }}>{temp.toFixed(0)}</span>
+        <span className="text-2xl ml-0.5" style={{ color }}>°</span>
+      </div>
 
       {/* 温度条 */}
       <div className="relative mt-6 mb-4">
@@ -60,11 +66,9 @@ export default function TemperatureGauge({ data }: Props) {
 
       {/* 温度等级 */}
       <div className="text-center mt-6">
-        <span className="text-3xl font-bold" style={{ color }}>{temp.toFixed(0)}</span>
-        <span className="text-lg ml-1" style={{ color }}>°</span>
         <div className="text-sm mt-1">
           <span className="mr-1">{data.emoji}</span>
-          <span style={{ color }}>{data.level}</span>
+          <span className="font-bold" style={{ color }}>{data.level}</span>
         </div>
         <div className="text-xs text-[#888] mt-1">{data.description}</div>
       </div>

@@ -51,13 +51,25 @@ const PHASE_COLORS: Record<string, string> = {
 
 export default function MerillClock({ data }: Props) {
   const cx = 105, cy = 115, r = 85
+  const activeColor = PHASE_COLORS[data.phase]
 
   return (
-    <div className="bg-[#111122] border border-[#1e1e3a] rounded-2xl p-5">
+    <div className="bg-[#111122] border border-[#1e1e3a] rounded-2xl p-6 shadow-lg shadow-black/30">
       <h3 className="text-sm font-medium text-[#888] mb-3 tracking-wide">美林时钟</h3>
 
       <div className="flex justify-center">
         <svg width="210" height="230" viewBox="0 0 210 230">
+          {/* 发光滤镜 */}
+          <defs>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
           {/* 四象限 */}
           {QUADRANTS.map(q => {
             const active = data.phase === q.phase
@@ -67,16 +79,17 @@ export default function MerillClock({ data }: Props) {
                 <path
                   d={arcPath(cx, cy, r, q.startAngle, q.endAngle)}
                   fill={active ? color : '#1a1a2e'}
-                  stroke="#2a2a4a"
-                  strokeWidth="1.5"
-                  opacity={active ? 1 : 0.4}
+                  stroke={active ? color : '#2a2a4a'}
+                  strokeWidth={active ? '2' : '1'}
+                  opacity={active ? 1 : 0.3}
+                  filter={active ? 'url(#glow)' : undefined}
                 />
                 <text x={q.labelX} y={q.labelY} textAnchor="middle"
-                  fill={active ? '#fff' : '#666'} fontSize={active ? "14" : "12"} fontWeight={active ? "bold" : "normal"}>
+                  fill={active ? '#fff' : '#555'} fontSize={active ? "15" : "12"} fontWeight={active ? "bold" : "normal"}>
                   {q.label}
                 </text>
                 <text x={q.assetX} y={q.assetY} textAnchor="middle"
-                  fill={active ? 'rgba(255,255,255,0.8)' : '#555'} fontSize="10">
+                  fill={active ? 'rgba(255,255,255,0.85)' : '#444'} fontSize="10">
                   {q.asset}
                 </text>
               </g>
@@ -84,11 +97,11 @@ export default function MerillClock({ data }: Props) {
           })}
 
           {/* 中心圆 — 置信度 */}
-          <circle cx={cx} cy={cy} r="30" fill="#0a0a14" stroke="#2a2a4a" strokeWidth="1" />
-          <text x={cx} y={cy - 4} textAnchor="middle" fill="#00d4ff" fontSize="18" fontWeight="bold">
+          <circle cx={cx} cy={cy} r="32" fill="#0a0a14" stroke={activeColor} strokeWidth="1.5" opacity="0.8" />
+          <text x={cx} y={cy - 4} textAnchor="middle" fill="#00d4ff" fontSize="20" fontWeight="bold">
             {Math.round(data.confidence * 100)}%
           </text>
-          <text x={cx} y={cy + 12} textAnchor="middle" fill="#888" fontSize="9">
+          <text x={cx} y={cy + 14} textAnchor="middle" fill="#888" fontSize="9">
             置信度
           </text>
 
@@ -102,11 +115,11 @@ export default function MerillClock({ data }: Props) {
 
       {/* 状态文字 */}
       <div className="text-center mt-2">
-        <div className="text-lg font-bold" style={{ color: PHASE_COLORS[data.phase] }}>
+        <div className="text-3xl font-bold" style={{ color: PHASE_COLORS[data.phase] }}>
           {data.phase_label}
         </div>
-        <div className="text-xs text-[#888] mt-1">
-          推荐超配: <span className="text-[#e0e0e0]">{data.best_asset}</span>
+        <div className="text-sm text-[#888] mt-1">
+          推荐超配: <span className="text-[#e0e0e0] font-medium">{data.best_asset}</span>
         </div>
         {data.credit_signal && (
           <div className="text-xs text-[#888] mt-0.5">

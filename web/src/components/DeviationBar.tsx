@@ -21,11 +21,21 @@ export default function DeviationBar({ data }: Props) {
   const entries = Object.entries(data.allocation).sort((a, b) => b[1] - a[1])
 
   return (
-    <div className="bg-[#111122] border border-[#1e1e3a] rounded-2xl p-5">
+    <div className="bg-[#111122] border border-[#1e1e3a] rounded-2xl p-6 shadow-lg shadow-black/30">
       <h3 className="text-sm font-medium text-[#888] mb-3 tracking-wide">推荐配置</h3>
 
+      {/* 核心数据突出 — 最大配比资产 */}
+      {entries.length > 0 && (
+        <div className="text-center mb-4">
+          <div className="text-3xl font-bold" style={{ color: ASSET_COLORS[entries[0][0]] || '#ccc' }}>
+            {Math.round(entries[0][1] * 100)}%
+          </div>
+          <div className="text-sm text-gray-500">{entries[0][0]}为主</div>
+        </div>
+      )}
+
       {/* 堆叠条 */}
-      <div className="flex h-6 rounded-full overflow-hidden mt-4 mb-3">
+      <div className="flex h-7 rounded-full overflow-hidden mb-3">
         {entries.map(([asset, ratio]) => (
           <div
             key={asset}

@@ -25,7 +25,7 @@ export default function Dashboard() {
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-6">
       {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-3">
         <div>
           <h1 className="text-2xl font-bold text-[#e0e0e0] tracking-tight">
             <span className="text-[#00d4ff]">Golden</span>Heat
@@ -44,30 +44,36 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Row 1: 三大核心卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <MerillClock data={data.merill_clock} />
-        {data.market_temperature.average && (
-          <TemperatureGauge data={data.market_temperature.average} />
-        )}
-        <DeviationBar data={data.merill_clock} />
-      </div>
+      <div className="space-y-10">
+        {/* Row 1: 三大核心卡片 */}
+        <section>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <MerillClock data={data.merill_clock} />
+            {data.market_temperature.average && (
+              <TemperatureGauge data={data.market_temperature.average} />
+            )}
+            <DeviationBar data={data.merill_clock} />
+          </div>
+        </section>
 
-      {/* Row 2: 月线信号热力表 */}
-      <div className="mb-4">
-        <SignalTable data={data.signals} />
-      </div>
+        {/* Row 2: 月线信号热力表 */}
+        <section>
+          <SignalTable data={data.signals} />
+        </section>
 
-      {/* Row 3: 牛熊分割线 */}
-      <div className="mb-6">
-        <BullBearChart data={data.bull_bear} />
+        {/* Row 3: 牛熊分割线 — 带分隔线和大标题 */}
+        <section className="border-t border-[#1e1e3a] pt-8">
+          <h2 className="text-xl font-bold text-[#e0e0e0] mb-6 tracking-tight">
+            牛熊分割线
+          </h2>
+          <BullBearChart data={data.bull_bear} />
+        </section>
       </div>
 
       {/* Footer */}
-      <footer className="text-center text-xs text-[#555] py-4 border-t border-[#1e1e3a]">
-        GoldenHeat &mdash; 只做月线级别操作，周线日线等于赌博
-        <br />
-        <span className="text-[#444]">系统输出仅供参考，不构成投资建议</span>
+      <footer className="text-center text-xs text-[#555] py-6 mt-10 border-t border-[#1e1e3a]">
+        <div>数据更新时间: {updatedAt}</div>
+        <div className="text-[#444] mt-1">仅供参考，不构成投资建议</div>
       </footer>
     </div>
   )

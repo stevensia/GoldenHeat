@@ -11,13 +11,13 @@ interface Props {
   data: SignalData[]
 }
 
-// 评分 → 热力颜色
+// 评分 → 热力颜色 (5级色彩编码)
 function scoreColor(score: number): string {
-  if (score >= 80) return '#22c55e'  // 强买入 — 绿
-  if (score >= 60) return '#84cc16'  // 关注 — 黄绿
-  if (score >= 40) return '#eab308'  // 持有 — 黄
-  if (score >= 20) return '#f97316'  // 警惕 — 橙
-  return '#ef4444'                    // 强卖出 — 红
+  if (score >= 80) return '#34d399'  // emerald-400 — 强买入
+  if (score >= 60) return '#facc15'  // yellow-400 — 关注
+  if (score >= 40) return '#9ca3af'  // gray-400 — 持有
+  if (score >= 20) return '#fb923c'  // orange-400 — 警惕
+  return '#f87171'                    // red-400 — 强卖出
 }
 
 // 评分 → 背景色 (低透明度)
@@ -40,45 +40,47 @@ export default function SignalTable({ data }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   return (
-    <div className="bg-[#111122] border border-[#1e1e3a] rounded-2xl p-5">
+    <div className="bg-[#111122] border border-[#1e1e3a] rounded-2xl p-6 shadow-lg shadow-black/30">
       <h3 className="text-sm font-medium text-[#888] mb-4 tracking-wide">月线信号热力表</h3>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-[#888] text-xs border-b border-[#1e1e3a]">
-              <th className="text-left py-2 px-2 font-medium">标的</th>
-              <th className="text-left py-2 px-2 font-medium hidden sm:table-cell">代码</th>
-              <th className="text-right py-2 px-2 font-medium">现价</th>
-              <th className="text-center py-2 px-2 font-medium">趋势</th>
-              <th className="text-center py-2 px-2 font-medium hidden md:table-cell">回调位置</th>
-              <th className="text-center py-2 px-2 font-medium">评分</th>
-              <th className="text-center py-2 px-2 font-medium">信号</th>
+            <tr className="text-[#888] text-xs bg-[#0a0a18] sticky top-0 z-10">
+              <th className="text-left py-2.5 px-3 font-medium">标的</th>
+              <th className="text-left py-2.5 px-3 font-medium hidden sm:table-cell">代码</th>
+              <th className="text-right py-2.5 px-3 font-medium">现价</th>
+              <th className="text-center py-2.5 px-3 font-medium">趋势</th>
+              <th className="text-center py-2.5 px-3 font-medium hidden md:table-cell">回调位置</th>
+              <th className="text-center py-2.5 px-3 font-medium">评分</th>
+              <th className="text-center py-2.5 px-3 font-medium">信号</th>
             </tr>
           </thead>
           <tbody>
-            {data.map(s => (
+            {data.map((s, idx) => (
               <>
                 <tr
                   key={s.symbol}
-                  className="border-b border-[#1e1e3a]/50 cursor-pointer hover:bg-[#1a1a2e] transition-colors"
+                  className={`cursor-pointer hover:bg-[#1a1a3a] transition-colors duration-200 ${
+                    idx % 2 === 0 ? 'bg-[#0f0f20]' : 'bg-[#111128]'
+                  }`}
                   onClick={() => setExpanded(expanded === s.symbol ? null : s.symbol)}
                 >
-                  <td className="py-2.5 px-2 font-medium text-[#e0e0e0]">{s.name}</td>
-                  <td className="py-2.5 px-2 text-[#888] text-xs hidden sm:table-cell">{s.symbol}</td>
-                  <td className="py-2.5 px-2 text-right font-mono text-[#ccc]">{formatPrice(s.current_price)}</td>
-                  <td className="py-2.5 px-2 text-center">
+                  <td className="py-3 px-3 font-medium text-[#e0e0e0]">{s.name}</td>
+                  <td className="py-3 px-3 text-[#888] text-xs hidden sm:table-cell">{s.symbol}</td>
+                  <td className="py-3 px-3 text-right font-mono text-[#ccc]">{formatPrice(s.current_price)}</td>
+                  <td className="py-3 px-3 text-center">
                     <TrendBadge trend={s.trend} label={s.trend_label} />
                   </td>
-                  <td className="py-2.5 px-2 text-center text-xs text-[#aaa] hidden md:table-cell">{s.pullback_label}</td>
-                  <td className="py-2.5 px-2 text-center">
-                    <span className="inline-block w-12 py-0.5 rounded-md text-xs font-bold"
+                  <td className="py-3 px-3 text-center text-xs text-[#aaa] hidden md:table-cell">{s.pullback_label}</td>
+                  <td className="py-3 px-3 text-center">
+                    <span className="inline-block w-14 py-1 rounded-md text-lg font-bold"
                       style={{ color: scoreColor(s.score), background: scoreBg(s.score) }}>
                       {s.score.toFixed(0)}
                     </span>
                   </td>
-                  <td className="py-2.5 px-2 text-center">
-                    <span className="text-xs px-2 py-0.5 rounded-full"
+                  <td className="py-3 px-3 text-center">
+                    <span className="text-lg font-bold px-2 py-0.5 rounded-full"
                       style={{ color: scoreColor(s.score), background: scoreBg(s.score) }}>
                       {s.level_label}
                     </span>

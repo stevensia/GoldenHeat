@@ -22,10 +22,8 @@ const PHASE_COLORS: Record<string, string> = {
 
 export default function BullBearChart({ data }: Props) {
   return (
-    <div className="bg-[#111122] border border-[#1e1e3a] rounded-2xl p-5">
-      <h3 className="text-sm font-medium text-[#888] mb-4 tracking-wide">牛熊分割线</h3>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {data.map(item => (
           <BullBearCard key={item.symbol} item={item} />
         ))}
@@ -36,6 +34,12 @@ export default function BullBearChart({ data }: Props) {
 
 function BullBearCard({ item }: { item: BullBearData }) {
   const color = PHASE_COLORS[item.phase] || '#888'
+  const isBullish = item.phase === 'bull' || item.phase === 'bull_early'
+  const borderColor = isBullish ? '#22c55e' : '#ef4444'
+
+  // 解析仓位范围取中间值作为进度条宽度
+  const positionMatch = item.position_range.match(/(\d+)/)
+  const positionPct = positionMatch ? parseInt(positionMatch[1]) : 50
 
   // 构造迷你图数据：用 current_price, ma12, ma24 展示相对位置
   const values = [item.ma24, item.ma12, item.current_price].filter(Boolean)
@@ -49,7 +53,10 @@ function BullBearCard({ item }: { item: BullBearData }) {
   ]
 
   return (
-    <div className="bg-[#0d0d1a] border border-[#1e1e3a] rounded-xl p-3">
+    <div
+      className="bg-[#0d0d1a] rounded-xl p-4 hover:-translate-y-1 transition-all duration-300 shadow-lg shadow-black/20"
+      style={{ border: `1px solid ${borderColor}40` }}
+    >
       {/* 头部: 名称 + 状态 */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-[#e0e0e0]">{item.name}</span>
@@ -94,6 +101,21 @@ function BullBearCard({ item }: { item: BullBearData }) {
         <div>
           <div className="text-[#666]">建议仓位</div>
           <div className="text-[#ccc] font-medium">{item.position_range}</div>
+        </div>
+      </div>
+
+      {/* 仓位进度条 */}
+      <div className="mt-2">
+        <div className="h-1.5 bg-[#1a1a2e] rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${positionPct}%`,
+              background: isBullish
+                ? 'linear-gradient(to right, #22c55e, #4ade80)'
+                : 'linear-gradient(to right, #ef4444, #f87171)',
+            }}
+          />
         </div>
       </div>
 

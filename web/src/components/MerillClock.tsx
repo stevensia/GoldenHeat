@@ -1,12 +1,17 @@
-/* 美林时钟 v2 — 紧凑圆盘 + 数据面板
+/* 美林时钟 v3 — 紧凑圆盘 + 可折叠数据溯源面板
  *
- * 参考 clock-web 的圆盘 + heatmap 的数据密度
- * 左侧圆盘，右侧指标列表
+ * 保留当前圆形时钟设计
+ * 下方新增可折叠 DataSourcePanel
  */
 
-import type { MerillClockData } from '../api/types'
+import type { MerillClockData, MacroDetail } from '../api/types'
+import DataSourcePanel from './DataSourcePanel'
 
-interface Props { data: MerillClockData }
+interface Props {
+  data: MerillClockData
+  /** 宏观数据明细（来自新 API，可能为 null） */
+  macroDetails?: MacroDetail[] | null
+}
 
 const PHASES = [
   { phase: 'recovery',    label: '复苏', asset: '股票', sa: 270, ea: 360, lx: 155, ly: 78,  ax: 155, ay: 95 },
@@ -30,57 +35,80 @@ function arc(cx: number, cy: number, r: number, s: number, e: number) {
   return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 0 0 ${end.x} ${end.y} Z`
 }
 
-export default function MerillClock({ data }: Props) {
+export default function MerillClock({ data, macroDetails }: Props) {
   const cx = 105, cy = 115, r = 82
   const color = COLORS[data.phase]
   const conf = Math.round(data.confidence * 100)
 
   return (
-    <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <div className="text-[11px] text-[#555] font-medium mb-3 uppercase tracking-widest">美林时钟</div>
+    <div>
+      <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="text-[11px] text-[#555] font-medium mb-3 uppercase tracking-widest">美林时钟</div>
 
-      <div className="flex justify-center">
-        <svg width="210" height="230" viewBox="0 0 210 230">
-          <defs>
-            <filter id="glow"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-          </defs>
-          {PHASES.map(q => {
-            const active = data.phase === q.phase
-            const c = COLORS[q.phase]
-            return (
-              <g key={q.phase}>
-                <path d={arc(cx, cy, r, q.sa, q.ea)}
-                  fill={active ? c : '#12122a'} stroke={active ? c : '#1e1e3a'}
-                  strokeWidth={active ? 1.5 : 0.5} opacity={active ? 0.9 : 0.25}
-                  filter={active ? 'url(#glow)' : undefined} />
-                <text x={q.lx} y={q.ly} textAnchor="middle" fill={active ? '#fff' : '#444'}
-                  fontSize={active ? '14' : '11'} fontWeight={active ? 'bold' : 'normal'}>{q.label}</text>
-                <text x={q.ax} y={q.ay} textAnchor="middle" fill={active ? 'rgba(255,255,255,0.7)' : '#333'}
-                  fontSize="9">{q.asset}</text>
-              </g>
-            )
-          })}
-          <circle cx={cx} cy={cy} r="30" fill="#0a0a14" stroke={color} strokeWidth="1" opacity="0.9" />
-          <text x={cx} y={cy - 2} textAnchor="middle" fill={color} fontSize="18" fontWeight="bold">{conf}%</text>
-          <text x={cx} y={cy + 12} textAnchor="middle" fill="#555" fontSize="8">置信度</text>
-          <text x={cx} y={16} textAnchor="middle" fill="#444" fontSize="8">GDP ↑</text>
-          <text x={cx} y={222} textAnchor="middle" fill="#444" fontSize="8">GDP ↓</text>
-          <text x={8} y={cy + 3} textAnchor="start" fill="#444" fontSize="8">CPI ↑</text>
-          <text x={202} y={cy + 3} textAnchor="end" fill="#444" fontSize="8">CPI ↓</text>
-        </svg>
-      </div>
-
-      <div className="text-center mt-1">
-        <span className="text-2xl font-bold" style={{ color }}>{data.phase_label}</span>
-        <span className="text-[11px] text-[#555] ml-2">→ 超配 <span className="text-[#ccc] font-medium">{data.best_asset}</span></span>
-      </div>
-
-      {data.transition_warning && (
-        <div className="mt-3 px-3 py-1.5 rounded-lg text-[11px] text-[#eab308] border border-[#eab30822]"
-          style={{ background: 'rgba(234,179,8,0.06)' }}>
-          ⚠️ {data.transition_warning}
+        <div className="flex justify-center">
+          <svg width="210" height="230" viewBox="0 0 210 230">
+            <defs>
+              <filter id="glow"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+            </defs>
+            {PHASES.map(q => {
+              const active = data.phase === q.phase
+              const c = COLORS[q.phase]
+              return (
+                <g key={q.phase}>
+                  <path d={arc(cx, cy, r, q.sa, q.ea)}
+                    fill={active ? c : '#12122a'} stroke={active ? c : '#1e1e3a'}
+                    strokeWidth={active ? 1.5 : 0.5} opacity={active ? 0.9 : 0.25}
+                    filter={active ? 'url(#glow)' : undefined} />
+                  <text x={q.lx} y={q.ly} textAnchor="middle" fill={active ? '#fff' : '#444'}
+                    fontSize={active ? '14' : '11'} fontWeight={active ? 'bold' : 'normal'}>{q.label}</text>
+                  <text x={q.ax} y={q.ay} textAnchor="middle" fill={active ? 'rgba(255,255,255,0.7)' : '#333'}
+                    fontSize="9">{q.asset}</text>
+                </g>
+              )
+            })}
+            <circle cx={cx} cy={cy} r="30" fill="#0a0a14" stroke={color} strokeWidth="1" opacity="0.9" />
+            <text x={cx} y={cy - 2} textAnchor="middle" fill={color} fontSize="18" fontWeight="bold">{conf}%</text>
+            <text x={cx} y={cy + 12} textAnchor="middle" fill="#555" fontSize="8">置信度</text>
+            <text x={cx} y={16} textAnchor="middle" fill="#444" fontSize="8">GDP ↑</text>
+            <text x={cx} y={222} textAnchor="middle" fill="#444" fontSize="8">GDP ↓</text>
+            <text x={8} y={cy + 3} textAnchor="start" fill="#444" fontSize="8">CPI ↑</text>
+            <text x={202} y={cy + 3} textAnchor="end" fill="#444" fontSize="8">CPI ↓</text>
+          </svg>
         </div>
-      )}
+
+        <div className="text-center mt-1">
+          <span className="text-2xl font-bold" style={{ color }}>{data.phase_label}</span>
+          <span className="text-[11px] text-[#555] ml-2">→ 超配 <span className="text-[#ccc] font-medium">{data.best_asset}</span></span>
+        </div>
+
+        {data.transition_warning && (
+          <div className="mt-3 px-3 py-1.5 rounded-lg text-[11px] text-[#eab308] border border-[#eab30822]"
+            style={{ background: 'rgba(234,179,8,0.06)' }}>
+            ⚠️ {data.transition_warning}
+          </div>
+        )}
+
+        {/* 简要指标行 */}
+        <div className="mt-4 grid grid-cols-2 gap-2 text-[10px]">
+          <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.02)' }}>
+            <span className="text-[#555]">GDP</span>
+            <span className="ml-2 font-medium" style={{ color: data.gdp_trend === 'up' ? '#22c55e' : '#ef4444' }}>
+              {data.gdp_trend === 'up' ? '↑ 扩张' : '↓ 收缩'}
+            </span>
+          </div>
+          <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.02)' }}>
+            <span className="text-[#555]">CPI</span>
+            <span className="ml-2 font-medium" style={{ color: data.cpi_trend === 'up' ? '#ef4444' : '#22c55e' }}>
+              {data.cpi_trend === 'up' ? '↑ 通胀' : '↓ 通缩'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 数据溯源折叠面板 */}
+      <div className="mt-3">
+        <DataSourcePanel data={macroDetails ?? null} />
+      </div>
     </div>
   )
 }

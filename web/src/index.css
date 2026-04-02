@@ -2,15 +2,15 @@
 @import "tailwindcss";
 
 :root {
-  --paper: #f7f3ec;
-  --paper-2: #f1ebe1;
-  --ink: #17181c;
-  --muted: #7d7468;
-  --muted-strong: #5f584d;
-  --line: rgba(17, 24, 39, 0.08);
-  --accent: #b45a3c;
-  --accent-2: #1f7a69;
-  --shadow: 0 24px 80px rgba(35, 30, 25, 0.08);
+  --paper: #0a0a14;
+  --paper-2: #0e0e1e;
+  --ink: #e0e0e0;
+  --muted: #555;
+  --muted-strong: #777;
+  --line: rgba(255, 255, 255, 0.06);
+  --accent: #eab308;
+  --accent-2: #22c55e;
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
 }
 
 * {
@@ -25,9 +25,9 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(180, 90, 60, 0.08), transparent 26%),
-    radial-gradient(circle at 85% 10%, rgba(31, 122, 105, 0.08), transparent 24%),
-    linear-gradient(180deg, #f8f4ee 0%, #f3ede3 100%);
+    radial-gradient(circle at top left, rgba(234, 179, 8, 0.04), transparent 26%),
+    radial-gradient(circle at 85% 10%, rgba(34, 197, 94, 0.03), transparent 24%),
+    linear-gradient(180deg, #0a0a14 0%, #08081a 100%);
   color: var(--ink);
   font-family: 'Manrope', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -47,22 +47,22 @@ select {
 }
 
 ::selection {
-  background: rgba(180, 90, 60, 0.18);
+  background: rgba(234, 179, 8, 0.22);
   color: var(--ink);
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(17, 24, 39, 0.03);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(17, 24, 39, 0.14);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .page-shell {
@@ -75,47 +75,43 @@ select {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.35;
+  opacity: 0.12;
   background-image:
-    linear-gradient(rgba(23, 24, 28, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23, 24, 28, 0.025) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
   background-size: 26px 26px;
   mask-image: radial-gradient(circle at center, black 42%, transparent 82%);
 }
 
+/* 保留旧类名以免其他地方引用报错，但适配深色 */
 .paper-card,
 .paper-card-sm {
   position: relative;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.44);
+  background: rgba(255, 255, 255, 0.03);
   box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
 
 .paper-card {
-  border-radius: 34px;
-  padding: 28px;
+  border-radius: 16px;
+  padding: 20px;
 }
 
 .paper-card-sm {
-  border-radius: 28px;
-  padding: 22px;
-}
-
-.paper-hero {
-  min-height: 380px;
+  border-radius: 12px;
+  padding: 16px;
 }
 
 .action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  padding: 0.9rem 1.35rem;
-  font-size: 0.95rem;
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.9rem;
   font-weight: 700;
-  letter-spacing: -0.01em;
   border: 1px solid transparent;
   transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease, background-color 180ms ease;
   cursor: pointer;
@@ -133,46 +129,32 @@ select {
 
 .action-btn-primary {
   color: var(--paper);
-  background: linear-gradient(135deg, var(--ink), #2d3139);
-  box-shadow: 0 16px 30px rgba(17, 24, 39, 0.16);
-}
-
-.phase-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(17, 24, 39, 0.12);
-  background: rgba(17, 24, 39, 0.08);
-}
-
-.phase-dot-active {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  border-color: transparent;
-  box-shadow: 0 0 0 6px rgba(180, 90, 60, 0.08);
-}
-
-.score-block {
-  min-width: 132px;
-  border-radius: 24px;
-  border: 1px solid rgba(17, 24, 39, 0.08);
-  background: rgba(255, 255, 255, 0.62);
-  padding: 18px;
+  background: var(--accent);
+  box-shadow: 0 8px 20px rgba(234, 179, 8, 0.2);
 }
 
 .chart-wrap {
-  border-radius: 24px;
-  border: 1px solid rgba(17, 24, 39, 0.06);
-  background: linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.38));
-  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 12px;
 }
 
 .compact-card {
-  padding: 20px;
+  padding: 16px;
 }
 
 .summary-card {
-  padding-top: 18px;
-  padding-bottom: 18px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.score-block {
+  min-width: 100px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 14px;
 }
 
 .font-serif-display {
@@ -181,21 +163,17 @@ select {
 
 @media (max-width: 768px) {
   .paper-card {
-    border-radius: 28px;
-    padding: 20px;
+    border-radius: 12px;
+    padding: 16px;
   }
 
   .paper-card-sm {
-    border-radius: 22px;
-    padding: 18px;
-  }
-
-  .paper-hero {
-    min-height: auto;
+    border-radius: 10px;
+    padding: 14px;
   }
 
   .score-block {
-    min-width: 110px;
+    min-width: 90px;
     width: 100%;
   }
 }

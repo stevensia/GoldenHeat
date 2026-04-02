@@ -25,6 +25,7 @@ export interface SignalData {
   symbol: string
   name: string
   score: number
+  prev_score?: number | null
   level: 'strong_buy' | 'watch' | 'hold' | 'caution' | 'strong_sell'
   level_label: string
   level_emoji: string
@@ -70,6 +71,7 @@ export interface TemperatureData {
   symbol: string
   name: string
   temperature: number
+  pe_percentile?: number | null
   level: string
   emoji: string
   description: string
@@ -78,6 +80,30 @@ export interface TemperatureData {
     ma_score: number
     volume_score: number
   }
+}
+
+// === 估值历史（Track A 新增） ===
+export interface ValuationHistoryPoint {
+  date: string
+  pe: number
+  percentile: number
+}
+
+// === K线历史（Track A 新增） ===
+export interface KlineHistoryPoint {
+  date: string
+  close: number
+  ma12?: number
+  ma24?: number
+}
+
+// === 宏观数据明细（Track A 新增） ===
+export interface MacroDetail {
+  name: string
+  value: number | string
+  trend: 'up' | 'down' | 'flat'
+  source: string
+  updated_at: string
 }
 
 // === Dashboard 聚合 ===

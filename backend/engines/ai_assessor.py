@@ -1,17 +1,14 @@
 """AI 评估模块 — 调用 LLM 分析美林时钟阶段
 
-调用 copilot-proxy (localhost:4399) 对当前宏观数据进行分析，
+通过统一 LLM 客户端 (backend.llm) 调用 AI，
 输出 AI 判断的 phase / position / confidence / reasoning。
 失败时返回 None，不影响算法判断。
 """
 
-import json
 import logging
 from typing import Optional
 
-import httpx
-
-from backend.config import LLM_BASE_URL, LLM_MODEL
+from backend.llm import llm_chat, extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -87,31 +84,19 @@ async def assess_with_ai(algo_result: dict, market: str = "cn") -> Optional[dict
     try:
         user_prompt = _build_user_prompt(algo_result, market)
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{LLM_BASE_URL}/chat/completions",
-                json={
-                    "model": LLM_MODEL,
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    "temperature": 0.3,
-                    "max_tokens": 500,
-                },
-            )
-            response.raise_for_status()
+        response = await llm_chat(
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.3,
+            max_tokens=500,
+        )
 
-        data = response.json()
-        content = data["choices"][0]["message"]["content"].strip()
-
-        # 解析 JSON（处理可能的 markdown 包裹）
-        if content.startswith("```"):
-            # 去掉 ```json 和 ```
-            lines = content.split("\n")
-            content = "\n".join(lines[1:-1])
-
-        result = json.loads(content)
+        result = extract_json(response)
+        if not result:
+            logger.warning("AI 评估: LLM 返回无法解析")
+            return None
 
         # 验证字段
         valid_phases = {"recovery", "overheat", "stagflation", "recession"}
@@ -138,12 +123,6 @@ async def assess_with_ai(algo_result: dict, market: str = "cn") -> Optional[dict
             "reasoning": reasoning,
         }
 
-    except httpx.HTTPStatusError as e:
-        logger.error(f"AI 评估 HTTP 错误: {e.response.status_code} {e.response.text[:200]}")
-        return None
-    except json.JSONDecodeError as e:
-        logger.error(f"AI 评估返回非 JSON: {e}")
-        return None
     except Exception as e:
         logger.error(f"AI 评估失败: {e}")
         return None

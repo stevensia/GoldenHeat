@@ -136,3 +136,10 @@ async def get_indicators(
             })
 
     return result
+
+
+@router.get("/llm-status")
+async def llm_status(_: str = Depends(verify_admin_token)):
+    """LLM 配置状态"""
+    from backend.llm import get_llm_status
+    return get_llm_status()

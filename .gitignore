@@ -31,3 +31,4 @@ docs-private/
 Thumbs.db
 *.db-shm
 *.db-wal
+logs/

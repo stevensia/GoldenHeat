@@ -20,6 +20,15 @@ data/*.sqlite
 .vscode/
 .idea/
 
+# Private docs (deployment configs, internal info)
+docs-private/
+CLAUDE.md
+
+# Claude Code task files
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db
+*.db-shm
+*.db-wal

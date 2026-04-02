@@ -1,9 +1,5 @@
 # GoldenHeat — 执行方案 v1.0
 
-> **执行人**: 小马 (main agent) — 技术开发
-> **审核人**: Lisa (commander) — 进度跟踪
-> **财务顾问**: Grace — 模型校验 + 投资逻辑审核
-> **分配时间**: 2026-04-02
 > **预计工期**: Phase 1-2 约 1 周, Phase 3 约 3-5 天
 
 ---
@@ -16,10 +12,11 @@
 ├── docs/
 │   ├── DESIGN.md              # 产品设计文档
 │   └── EXECUTION.md           # 本文件：执行方案
+├── docs-private/              # 内部部署文档（不上传）
 ├── backend/                   # Python 后端
 │   ├── pyproject.toml         # 依赖管理 (uv/pip)
 │   ├── main.py                # FastAPI 入口
-│   ├── config.py              # 配置
+│   ├── config.py              # 配置（从 .env 加载）
 │   ├── db/
 │   │   ├── __init__.py
 │   │   ├── connection.py      # SQLite 连接
@@ -83,32 +80,32 @@
 - [x] 创建目录结构
 - [x] README.md + DESIGN.md + EXECUTION.md
 - [x] git init + push to GitHub
-- [ ] `pyproject.toml` 依赖配置
-- [ ] SQLite schema 建表脚本
-- [ ] 配置文件 (API keys, watchlist)
+- [x] `pyproject.toml` 依赖配置
+- [x] SQLite schema 建表脚本
+- [x] 配置文件 (API keys via .env, watchlist)
 
 #### 1.2 数据采集器
-- [ ] `kline.py` — yfinance 拉取月线 K 线（中港美 + BTC + 指数）
-- [ ] `macro_cn.py` — akshare 拉取中国宏观（CPI/PPI/PMI/GDP/M2/LPR）
-- [ ] `macro_us.py` — fredapi 拉取美国宏观（CPI/GDP/非农/FFR）
+- [x] `kline.py` — yfinance 拉取月线 K 线（中港美 + BTC + 指数）
+- [x] `macro_cn.py` — akshare 拉取中国宏观（CPI/PPI/PMI/GDP/M2/LPR）
+- [x] `macro_us.py` — fredapi 拉取美国宏观（CPI/GDP/非农/FFR）
 - [ ] `valuation.py` — 估值数据（PE/PB 分位）
 - [ ] `scheduler.py` — APScheduler 定时任务（每日/每周/每月）
-- [ ] `backfill.py` — 回填历史数据（至少 10 年月线）
+- [x] `backfill.py` — 回填历史数据（至少 10 年月线）
 
 #### 1.3 美林时钟引擎
-- [ ] `merill_clock.py` — 四阶段判断逻辑
-- [ ] GDP 趋势计算（4 季度滑动窗口）
-- [ ] CPI 趋势计算（6 月滑动窗口）
-- [ ] PMI 矫正因子
-- [ ] 信贷领先指标
-- [ ] 阶段转换预警
+- [x] `merill_clock.py` — 四阶段判断逻辑
+- [x] GDP 趋势计算（4 季度滑动窗口）
+- [x] CPI 趋势计算（6 月滑动窗口）
+- [x] PMI 矫正因子
+- [x] 信贷领先指标
+- [x] 阶段转换预警
 - [ ] 偏离度计算（当前持仓 vs 推荐配置）
 
 #### 1.4 测试验证
-- [ ] 用历史数据验证美林时钟 2020-2025 的判断准确性
-- [ ] 输出每个季度的阶段判断 + 回测收益对比
+- [x] 用历史数据验证美林时钟 2020-2025 的判断准确性
+- [x] 输出每个季度的阶段判断 + 回测收益对比
 
-**交付物**: 可运行的数据采集 + 美林时钟引擎，能输出当前阶段判断
+**交付物**: ✅ 可运行的数据采集 + 美林时钟引擎
 
 ---
 
@@ -143,9 +140,10 @@
 - [ ] `GET /api/signals` — 标的信号列表
 - [ ] `GET /api/merill` — 美林时钟状态
 - [ ] `GET /api/bullbear` — 牛熊状态
-- [ ] `POST /api/refresh` — 手动刷新数据
+- [ ] `POST /api/refresh` — 手动刷新数据（Bearer Token 保护）
+- [ ] Rate limiting + CORS 配置
 
-**交付物**: 完整的分析引擎 + API，能返回所有标的的月线信号和牛熊状态
+**交付物**: 完整的分析引擎 + API
 
 ---
 
@@ -158,16 +156,16 @@
 - [ ] `SignalTable.tsx` — 标的信号热力表
 - [ ] `BullBearChart.tsx` — 牛熊分割线图（月线 + 年线叠加）
 - [ ] `Dashboard.tsx` — 主页面组合
-- [ ] 部署到 lishengms.com/goldenheat
+- [ ] 部署到可配置域名路径
 
 #### 3.2 AI 辅助
-- [ ] `advisor.py` — 接入 copilot-proxy LLM
+- [ ] `advisor.py` — 接入 LLM API
 - [ ] 周报生成 prompt
 - [ ] 信号对抗式审视 prompt
 - [ ] `AIDigest.tsx` — 前端展示 AI 分析
 
 #### 3.3 通知系统
-- [ ] Telegram Bot 通知（通过 Grace agent 推送）
+- [ ] Telegram Bot 通知
 - [ ] 每周日自动周报
 - [ ] 信号变化即时通知
 
@@ -176,7 +174,7 @@
 - [ ] PM2 / systemd 后端进程
 - [ ] 定时采集 cron
 
-**交付物**: 完整可用的 Web Dashboard + Telegram 通知
+**交付物**: 完整可用的 Web Dashboard + 通知
 
 ---
 
@@ -191,68 +189,12 @@
 
 ---
 
-## 任务分配
-
-### 🐴 小马（技术主力）
-- Phase 1 全部：数据采集器 + 美林时钟引擎 + SQLite schema
-- Phase 2 全部：月线信号 + 牛熊分割线 + API
-- Phase 3 前端：React Dashboard
-- Phase 3 部署：Nginx + PM2
-
-### 👩‍🎓 Grace（财务审核）
-- 审核美林时钟判断逻辑的合理性
-- 审核月线信号评分模型
-- 提供 Steven 当前持仓数据（计算偏离度）
-- 审核 AI prompt 的投资逻辑
-
-### 👩‍💼 Lisa（项目管理）
-- 进度跟踪
-- 代码审核
-- Phase 3 AI 辅助层（prompt engineering）
-- 集成测试
-
----
-
-## 关键依赖
-
-```toml
-# Python 依赖
-[project]
-dependencies = [
-    "fastapi>=0.115",
-    "uvicorn>=0.34",
-    "yfinance>=0.2",
-    "akshare>=1.15",
-    "fredapi>=0.5",
-    "pandas>=2.2",
-    "numpy>=2.0",
-    "ta-lib>=0.5",       # 技术分析（如系统无 TA-Lib C 库，用 pandas-ta 替代）
-    "apscheduler>=3.10",
-    "httpx>=0.27",
-    "python-dotenv>=1.0",
-]
-```
-
-```json
-// 前端依赖
-{
-  "dependencies": {
-    "react": "^19",
-    "react-dom": "^19",
-    "recharts": "^2.12",
-    "@tanstack/react-query": "^5"
-  }
-}
-```
-
----
-
 ## 部署规范
 
 ### 前端部署
-- **域名路径**: `lishengms.com/heat`
+- **域名路径**: 可配置（通过环境变量 `DEPLOY_BASE_PATH`）
 - **访问权限**: 公开访问，无需登录
-- **前端构建**: Vite build → 静态文件部署到 `/var/www/lishengms/heat/`
+- **前端构建**: Vite build → 静态文件部署
 
 ### API 安全防护
 
@@ -267,7 +209,7 @@ dependencies = [
 - Token 在 `.env` 中配置 `ADMIN_API_TOKEN`
 
 #### CORS
-- 限制为 `https://lishengms.com` 和 `http://localhost:*`（开发用）
+- 限制为部署域名和 `http://localhost:*`（开发用）
 - 禁止 `*` 通配
 
 #### 数据隐私
@@ -275,12 +217,12 @@ dependencies = [
 - **允许展示**: 配置比例（%）、市场温度（0-100）、信号评级、偏离度（%）、美林时钟阶段
 - 所有 API 返回数据需经 sanitize 层过滤
 
-### Nginx 配置
+### Nginx 配置示例
 
 ```nginx
 server {
     listen 443 ssl;
-    server_name lishengms.com;
+    server_name your-domain.com;
 
     # Security Headers
     add_header X-Frame-Options "DENY" always;
@@ -292,7 +234,7 @@ server {
 
     # 前端静态文件
     location /heat {
-        alias /var/www/lishengms/heat;
+        alias /path/to/build;
         try_files $uri $uri/ /heat/index.html;
     }
 
@@ -313,20 +255,52 @@ server {
 
 ### 后端进程管理
 - **PM2 进程名**: `goldenheat-api`
-- **端口**: 3009
-- **启动命令**: `cd /opt/GoldenHeat/backend && uvicorn main:app --host 127.0.0.1 --port 3009`
+- **端口**: 可配置（默认 3009）
+- **启动命令**: `cd backend && uvicorn main:app --host 127.0.0.1 --port 3009`
 - **定时采集**: APScheduler 内置（每日 08:00 K线 + 每月宏观数据）
+
+---
+
+## 关键依赖
+
+```toml
+# Python 依赖
+[project]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.34",
+    "yfinance>=0.2",
+    "akshare>=1.15",
+    "fredapi>=0.5",
+    "pandas>=2.2",
+    "numpy>=2.0",
+    "apscheduler>=3.10",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+]
+```
+
+```json
+// 前端依赖
+{
+  "dependencies": {
+    "react": "^19",
+    "react-dom": "^19",
+    "recharts": "^2.12",
+    "@tanstack/react-query": "^5"
+  }
+}
+```
 
 ---
 
 ## 风险与注意事项
 
 1. **数据源可靠性**：akshare/yfinance 免费 API 可能限流或变更，需要做错误重试 + 多源备份
-2. **TA-Lib 安装**：C 语言库在 Linux 上需要编译安装，备选方案用 pandas-ta
-3. **美林时钟滞后性**：GDP 数据季度更新，PMI 月度更新，判断会有 1-3 个月滞后
-4. **不做短线**：整个系统的设计原则是月线级别，任何短线相关的需求都拒绝
-5. **投资建议免责**：系统输出仅供参考，不构成投资建议
+2. **美林时钟滞后性**：GDP 数据季度更新，PMI 月度更新，判断会有 1-3 个月滞后
+3. **不做短线**：整个系统的设计原则是月线级别，任何短线相关的需求都拒绝
+4. **投资建议免责**：系统输出仅供参考，不构成投资建议
 
 ---
 
-*GoldenHeat Execution Plan v1.0 — 2026-04-02*
+*GoldenHeat Execution Plan v1.0*

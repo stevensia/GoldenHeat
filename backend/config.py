@@ -46,3 +46,12 @@ MONTHLY_SIGNAL = {
     "pe_high_percentile": 70,    # 高估阈值
     "volume_change_threshold": 1.5,  # 放量阈值
 }
+
+# API 配置
+ADMIN_API_TOKEN = os.getenv("ADMIN_API_TOKEN", "goldenheat-admin-secret")
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+DEPLOY_BASE_PATH = os.getenv("DEPLOY_BASE_PATH", "/heat")
+
+# Rate Limiting（每分钟请求数）
+RATE_LIMIT_READ = 60    # 只读 API
+RATE_LIMIT_WRITE = 10   # 写入 API

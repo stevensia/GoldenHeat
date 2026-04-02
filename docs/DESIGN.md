@@ -10,7 +10,7 @@
 - 牛熊分割线操作（持仓周期：6个月-数年）
 - AI 判断趋势 + 美林时钟矫正方向 + 偏离度量化
 
-**目标用户**：Steven 自用 → 未来可分享给投资社群
+**目标用户**：个人自用 → 未来可分享给投资社群
 
 ---
 
@@ -70,12 +70,12 @@ class MerillClock:
 
 **偏离度计算**：
 - 当前资产配置 vs 美林时钟推荐配置的偏差
-- 例：美林时钟说"复苏期→超配股票"，但你 80% 持仓是债券 → 偏离度高
+- 例：美林时钟说"复苏期→超配股票"，但 80% 持仓是债券 → 偏离度高
 
 **输出**：
 - 当前阶段判断 + 置信度
 - 推荐资产配置比例
-- 与你实际持仓的偏离度
+- 与实际持仓的偏离度
 - 阶段转换预警信号
 
 ---
@@ -129,21 +129,18 @@ class MerillClock:
 
 **标的覆盖**：
 ```python
+# 用户可自定义 watchlist，以下为示例配置
 WATCHLIST = {
-    # A股
-    'tencent': { 'code': '00700.HK', 'type': 'stock', 'market': 'hk' },
-    'moutai':  { 'code': '600519.SH', 'type': 'stock', 'market': 'cn' },
-    'alibaba': { 'code': '09988.HK', 'type': 'stock', 'market': 'hk' },
-    # 美股
-    'nvda':    { 'code': 'NVDA', 'type': 'stock', 'market': 'us' },
-    'tsla':    { 'code': 'TSLA', 'type': 'stock', 'market': 'us' },
-    'msft':    { 'code': 'MSFT', 'type': 'stock', 'market': 'us' },
-    # 加密
-    'btc':     { 'code': 'BTC-USD', 'type': 'crypto', 'market': 'crypto' },
+    # 港股示例
+    'example_hk':  { 'code': '00700.HK', 'type': 'stock', 'market': 'hk' },
+    # 美股示例
+    'example_us':  { 'code': 'AAPL', 'type': 'stock', 'market': 'us' },
+    # 加密货币示例
+    'btc':         { 'code': 'BTC-USD', 'type': 'crypto', 'market': 'crypto' },
     # 指数（牛熊参考）
-    'sp500':   { 'code': '^GSPC', 'type': 'index', 'market': 'us' },
-    'sse':     { 'code': '000001.SS', 'type': 'index', 'market': 'cn' },
-    'hsi':     { 'code': '^HSI', 'type': 'index', 'market': 'hk' },
+    'sp500':       { 'code': '^GSPC', 'type': 'index', 'market': 'us' },
+    'sse':         { 'code': '000001.SS', 'type': 'index', 'market': 'cn' },
+    'hsi':         { 'code': '^HSI', 'type': 'index', 'market': 'hk' },
 }
 ```
 
@@ -224,7 +221,7 @@ class AIAdvisor:
         return await self.llm.analyze(prompt)
     
     async def challenge_signal(self, signal) -> str:
-        """对信号进行对抗式审视（Steven 的双面审视法）"""
+        """对信号进行对抗式审视"""
         prompt = f"""
         系统生成了以下买入信号: {signal}
         
@@ -331,7 +328,7 @@ React SPA，一页看清全局：
 
 - 每周日推送周报摘要
 - 信号变化时即时通知（如某标的进入买入区）
-- 支持查询命令：`/heat` 查温度、`/signal 腾讯` 查信号
+- 支持查询命令：`/heat` 查温度、`/signal <标的>` 查信号
 
 ### 形态 3: 邮件周报（存档）
 
@@ -345,7 +342,7 @@ React SPA，一页看清全局：
 
 | 系统 | 集成方式 | 用途 |
 |------|---------|------|
-| Grace Agent | API 调用 | Grace 可查询 GoldenHeat 信号辅助投资分析 |
-| copilot-proxy | LLM 调用 | 使用现有 LLM 基础设施 |
-| OpenClaw | Telegram Bot | 通过 Lisa/Grace 渠道推送信号 |
-| Portfolio Dashboard | 数据对接 | 持仓数据用于计算偏离度 |
+| LLM API | HTTP 调用 | 使用可配置的 LLM 服务进行辅助分析 |
+| Telegram Bot | Bot API | 通过 Telegram 渠道推送信号通知 |
+| 邮件服务 | SMTP | 自动发送周报到指定邮箱 |
+| 持仓数据 | 可配置导入 | 用于计算偏离度 |

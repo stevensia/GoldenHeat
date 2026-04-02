@@ -22,7 +22,6 @@ data/*.sqlite
 
 # Private docs (deployment configs, internal info)
 docs-private/
-CLAUDE.md
 
 # Claude Code task files
 .claude/

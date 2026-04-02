@@ -154,8 +154,8 @@ class MerillClock:
         trend = "up" if slope > 0 else "down"
         return (trend, float(slope))
 
-    def _load_indicator(self, indicator: str, limit: int = 60) -> pd.Series:
-        """从数据库加载指标数据
+    def _load_indicator(self, indicator: str, limit: int = 500) -> pd.Series:
+        """从数据库加载指标数据（全量加载，按日期升序）
 
         Args:
             indicator: 指标名 (如 'cn_cpi', 'cn_gdp')

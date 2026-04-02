@@ -13,11 +13,22 @@ interface Props {
   macroDetails?: MacroDetail[] | null
 }
 
+/*
+ * 标准美林时钟象限（顺时针）:
+ *
+ *            GDP ↑
+ *     复苏(股票) │ 过热(商品)
+ *  CPI ↓ ───────┼─────── CPI ↑
+ *     衰退(债券) │ 滞胀(现金)
+ *            GDP ↓
+ *
+ * 顺时针方向: 复苏 → 过热 → 滞胀 → 衰退 → 复苏 ...
+ */
 const PHASES = [
-  { phase: 'recovery',    label: '复苏', asset: '股票', sa: 270, ea: 360, lx: 155, ly: 78,  ax: 155, ay: 95 },
-  { phase: 'overheat',    label: '过热', asset: '商品', sa: 180, ea: 270, lx: 55,  ly: 78,  ax: 55,  ay: 95 },
-  { phase: 'stagflation', label: '滞胀', asset: '现金', sa: 90,  ea: 180, lx: 55,  ly: 152, ax: 55,  ay: 169 },
-  { phase: 'recession',   label: '衰退', asset: '债券', sa: 0,   ea: 90,  lx: 155, ly: 152, ax: 155, ay: 169 },
+  { phase: 'recovery',    label: '复苏', asset: '⭐ 股票', sa: 270, ea: 360, lx: 55,  ly: 78,  ax: 55,  ay: 95 },
+  { phase: 'overheat',    label: '过热', asset: '⭐ 商品', sa: 0,   ea: 90,  lx: 155, ly: 78,  ax: 155, ay: 95 },
+  { phase: 'stagflation', label: '滞胀', asset: '⭐ 现金', sa: 90,  ea: 180, lx: 155, ly: 152, ax: 155, ay: 169 },
+  { phase: 'recession',   label: '衰退', asset: '⭐ 债券', sa: 180, ea: 270, lx: 55,  ly: 152, ax: 55,  ay: 169 },
 ] as const
 
 const COLORS: Record<string, string> = {
@@ -71,8 +82,19 @@ export default function MerillClock({ data, macroDetails }: Props) {
             <text x={cx} y={cy + 12} textAnchor="middle" fill="#555" fontSize="8">置信度</text>
             <text x={cx} y={16} textAnchor="middle" fill="#444" fontSize="8">GDP ↑</text>
             <text x={cx} y={222} textAnchor="middle" fill="#444" fontSize="8">GDP ↓</text>
-            <text x={8} y={cy + 3} textAnchor="start" fill="#444" fontSize="8">CPI ↑</text>
-            <text x={202} y={cy + 3} textAnchor="end" fill="#444" fontSize="8">CPI ↓</text>
+            <text x={8} y={cy + 3} textAnchor="start" fill="#444" fontSize="8">CPI ↓</text>
+            <text x={202} y={cy + 3} textAnchor="end" fill="#444" fontSize="8">CPI ↑</text>
+
+            {/* 顺时针方向箭头 */}
+            <path d="M 145 30 A 60 60 0 0 1 175 70" fill="none" stroke="#333" strokeWidth="0.8" markerEnd="url(#arrow)" />
+            <path d="M 178 155 A 60 60 0 0 1 148 195" fill="none" stroke="#333" strokeWidth="0.8" markerEnd="url(#arrow)" />
+            <path d="M 62 195 A 60 60 0 0 1 32 155" fill="none" stroke="#333" strokeWidth="0.8" markerEnd="url(#arrow)" />
+            <path d="M 30 70 A 60 60 0 0 1 62 30" fill="none" stroke="#333" strokeWidth="0.8" markerEnd="url(#arrow)" />
+            <defs>
+              <marker id="arrow" markerWidth="6" markerHeight="4" refX="6" refY="2" orient="auto">
+                <path d="M 0 0 L 6 2 L 0 4" fill="none" stroke="#555" strokeWidth="0.8" />
+              </marker>
+            </defs>
           </svg>
         </div>
 

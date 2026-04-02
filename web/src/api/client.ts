@@ -15,6 +15,12 @@ import type {
   ClockSummary,
   ClockAssessment,
   ClockIndicator,
+  IndexValuation,
+  PEHistoryPoint,
+  DCAPlan,
+  DCARecord,
+  DCAAnalysis,
+  TechnicalAnalysis,
 } from './types'
 
 // === JWT 管理 ===
@@ -335,28 +341,105 @@ export async function postAdminClockConfirm(
 
 /** V1: 估值总览 */
 export async function fetchV1ValuationOverview() {
-  return fetchV1OrNull<unknown>('/valuation/overview')
+  return fetchV1<IndexValuation[]>('/valuation/overview')
 }
 
 /** V1: PE 历史 */
 export async function fetchV1PEHistory(symbol: string, months = 120) {
-  return fetchV1OrNull<unknown>(`/valuation/pe-history?symbol=${encodeURIComponent(symbol)}&months=${months}`)
+  return fetchV1<PEHistoryPoint[]>(`/valuation/pe-history?symbol=${encodeURIComponent(symbol)}&months=${months}`)
 }
 
 /** V1: 定投计划列表 */
 export async function fetchV1DCAPlans() {
-  return fetchV1OrNull<unknown>('/dca/plans')
+  return fetchV1<DCAPlan[]>('/dca/plans')
+}
+
+/** V1: 创建定投计划 */
+export async function createV1DCAPlan(body: {
+  name: string
+  symbol: string
+  strategy?: string
+  amount: number
+  frequency?: string
+  start_date?: string
+  pe_low?: number | null
+  pe_high?: number | null
+}) {
+  const res = await fetch(`${API_V1_BASE}/dca/plans`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    handle401(res)
+    throw new Error(`创建定投计划失败: ${res.status}`)
+  }
+  return res.json()
+}
+
+/** V1: 修改定投计划 */
+export async function updateV1DCAPlan(planId: number, body: Record<string, unknown>) {
+  const res = await fetch(`${API_V1_BASE}/dca/plans/${planId}`, {
+    method: 'PUT',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    handle401(res)
+    throw new Error(`修改定投计划失败: ${res.status}`)
+  }
+  return res.json()
+}
+
+/** V1: 删除定投计划 */
+export async function deleteV1DCAPlan(planId: number) {
+  const res = await fetch(`${API_V1_BASE}/dca/plans/${planId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    handle401(res)
+    throw new Error(`删除定投计划失败: ${res.status}`)
+  }
+  return res.json()
+}
+
+/** V1: 添加定投记录 */
+export async function addV1DCARecord(body: {
+  plan_id: number
+  date?: string
+  amount: number
+  price: number
+  shares: number
+  pe_at_buy?: number | null
+  pe_percentile?: number | null
+}) {
+  const res = await fetch(`${API_V1_BASE}/dca/records`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    handle401(res)
+    throw new Error(`添加定投记录失败: ${res.status}`)
+  }
+  return res.json()
 }
 
 /** V1: 定投历史 */
-export async function fetchV1DCAHistory(planId?: string) {
+export async function fetchV1DCAHistory(planId?: number) {
   const query = planId ? `?plan_id=${planId}` : ''
-  return fetchV1OrNull<unknown>(`/dca/history${query}`)
+  return fetchV1<DCARecord[]>(`/dca/history${query}`)
+}
+
+/** V1: 定投收益分析 */
+export async function fetchV1DCAAnalysis(planId: number) {
+  return fetchV1<DCAAnalysis>(`/dca/analysis?plan_id=${planId}`)
 }
 
 /** V1: 技术信号 */
 export async function fetchV1TechnicalSignal(symbol: string) {
-  return fetchV1OrNull<unknown>(`/signal/technical?symbol=${encodeURIComponent(symbol)}`)
+  return fetchV1<TechnicalAnalysis>(`/signal/technical?symbol=${encodeURIComponent(symbol)}`)
 }
 
 // Re-export for convenience

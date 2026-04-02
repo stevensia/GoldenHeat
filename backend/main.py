@@ -39,6 +39,11 @@ from backend.api.admin_watchlist import router as admin_watchlist_router
 from backend.api.admin_config import router as admin_config_router
 from backend.api.data_health import router as data_health_router
 
+# Task E 新增路由
+from backend.api.valuation_v1 import router as valuation_v1_router
+from backend.api.dca_routes import router as dca_router
+from backend.api.technical import router as technical_router
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -138,6 +143,11 @@ app.include_router(auth_router, prefix="/api/v1", tags=["V1 Auth"])
 app.include_router(admin_watchlist_router, prefix="/api/v1", tags=["V1 Watchlist"])
 app.include_router(admin_config_router, prefix="/api/v1", tags=["V1 Config"])
 app.include_router(data_health_router, prefix="/api/v1", tags=["V1 Health"])
+
+# Task E: 估值/定投/技术分析 API
+app.include_router(valuation_v1_router, prefix="/api/v1", tags=["V1 Valuation PE"])
+app.include_router(dca_router, prefix="/api/v1", tags=["V1 DCA"])
+app.include_router(technical_router, prefix="/api/v1", tags=["V1 Technical"])
 
 
 @app.on_event("startup")

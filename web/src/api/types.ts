@@ -158,3 +158,109 @@ export interface ClockIndicator {
   date: string
   source: string
 }
+
+// === Task E: 估值百分位 ===
+export interface IndexValuation {
+  symbol: string
+  name: string
+  pe_ttm: number
+  pe_pct_5y: number | null
+  pe_pct_10y: number | null
+  zone: string
+  zone_color: string
+  latest_date: string
+  pe_5y_avg: number | null
+  pe_5y_min: number | null
+  pe_5y_max: number | null
+}
+
+export interface PEHistoryPoint {
+  date: string
+  pe_ttm: number | null
+  pe_static: number | null
+  pe_median: number | null
+  index_value: number | null
+}
+
+// === Task E: 定投 DCA ===
+export interface DCAPlan {
+  id: number
+  name: string
+  symbol: string
+  strategy: 'fixed' | 'pe_weighted'
+  amount: number
+  frequency: 'weekly' | 'biweekly' | 'monthly'
+  start_date: string
+  pe_low: number | null
+  pe_high: number | null
+  enabled: number
+  status: 'active' | 'paused'
+  record_count: number
+  total_invested: number
+  total_shares: number
+  current_value: number | null
+  latest_price: number | null
+}
+
+export interface DCARecord {
+  id: number
+  plan_id: number
+  date: string
+  amount: number
+  price: number
+  shares: number
+  pe_at_buy: number | null
+  pe_percentile: number | null
+  total_cost: number | null
+  total_shares: number | null
+  symbol: string
+  name: string
+}
+
+export interface DCAAnalysis {
+  plan_id: number
+  symbol: string
+  name: string
+  total_invested: number
+  current_value: number
+  total_return_pct: number
+  avg_cost: number
+  latest_price: number | null
+  records_count: number
+  lump_sum_return_pct: number | null
+  return_curve: { date: string; invested: number; value: number }[]
+}
+
+// === Task E: 技术分析 ===
+export interface TechnicalIndicator {
+  name: string
+  score: number
+  label: string
+  detail: string
+}
+
+export interface KeyLevel {
+  type: 'support' | 'resistance'
+  price: number
+  label: string
+}
+
+export interface SignalAlert {
+  signal: string
+  direction: 'bullish' | 'bearish' | 'neutral'
+  date: string
+}
+
+export interface TechnicalAnalysis {
+  symbol: string
+  name: string
+  price: number
+  change: number
+  change_pct: number
+  trend: 'bullish' | 'bearish' | 'sideways'
+  composite_score: number
+  composite_signal: string
+  indicators: TechnicalIndicator[]
+  key_levels: KeyLevel[]
+  alerts: SignalAlert[]
+}

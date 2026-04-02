@@ -2,14 +2,15 @@
  *
  * 功能:
  * 1. 定投计划列表 (卡片式)
- * 2. 创建计划 modal: 选标的、金额、频率、策略(固定/PE加权)
+ * 2. 创建计划 modal
  * 3. 定投历史记录表格
  * 4. 累计收益曲线 (Recharts)
  *
- * 暂用 mock 数据，预留 API: /api/v1/dca/plans, /api/v1/dca/history
+ * 真实数据来源: /api/v1/dca/plans, /api/v1/dca/history, /api/v1/dca/analysis
  */
 
 import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   AreaChart,
   Area,
@@ -19,39 +20,17 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import type { DCAPlan, DCARecord, DCAAnalysis } from '../api/types'
+import {
+  fetchV1DCAPlans,
+  fetchV1DCAHistory,
+  fetchV1DCAAnalysis,
+  createV1DCAPlan,
+  updateV1DCAPlan,
+  deleteV1DCAPlan,
+} from '../api/client'
 
-// === Types ===
-interface DCAPlan {
-  id: string
-  symbol: string
-  name: string
-  amount: number
-  frequency: 'weekly' | 'biweekly' | 'monthly'
-  strategy: 'fixed' | 'pe_weighted'
-  status: 'active' | 'paused'
-  totalInvested: number
-  currentValue: number
-  startDate: string
-  nextDate: string
-}
-
-interface DCARecord {
-  date: string
-  symbol: string
-  amount: number
-  price: number
-  shares: number
-  pePercentile: number | null
-}
-
-interface ReturnPoint {
-  date: string
-  invested: number
-  value: number
-}
-
-// === Mock 数据 ===
-
+// === 常量 ===
 const FREQ_LABELS: Record<string, string> = {
   weekly: '每周',
   biweekly: '双周',
@@ -63,82 +42,33 @@ const STRATEGY_LABELS: Record<string, string> = {
   pe_weighted: 'PE 加权',
 }
 
-const MOCK_PLANS: DCAPlan[] = [
-  {
-    id: '1',
-    symbol: '000300.SS',
-    name: '沪深300 ETF',
-    amount: 2000,
-    frequency: 'monthly',
-    strategy: 'pe_weighted',
-    status: 'active',
-    totalInvested: 48000,
-    currentValue: 52300,
-    startDate: '2024-04-01',
-    nextDate: '2026-05-01',
-  },
-  {
-    id: '2',
-    symbol: 'NVDA',
-    name: '英伟达',
-    amount: 500,
-    frequency: 'biweekly',
-    strategy: 'fixed',
-    status: 'active',
-    totalInvested: 26000,
-    currentValue: 34500,
-    startDate: '2025-01-01',
-    nextDate: '2026-04-15',
-  },
-  {
-    id: '3',
-    symbol: 'BTC-USD',
-    name: '比特币',
-    amount: 1000,
-    frequency: 'weekly',
-    strategy: 'fixed',
-    status: 'paused',
-    totalInvested: 52000,
-    currentValue: 67800,
-    startDate: '2025-06-01',
-    nextDate: '-',
-  },
+const SYMBOL_OPTIONS = [
+  { value: '000300.SS', label: '沪深300' },
+  { value: '000001.SS', label: '上证指数' },
+  { value: 'NVDA', label: '英伟达 NVDA' },
+  { value: 'MSFT', label: '微软 MSFT' },
+  { value: 'TSLA', label: '特斯拉 TSLA' },
+  { value: 'BTC-USD', label: '比特币 BTC' },
+  { value: '0700.HK', label: '腾讯 0700.HK' },
+  { value: '9988.HK', label: '阿里巴巴 9988.HK' },
 ]
 
-const MOCK_RECORDS: DCARecord[] = [
-  { date: '2026-04-01', symbol: '000300.SS', amount: 2400, price: 4150, shares: 0.578, pePercentile: 28 },
-  { date: '2026-03-17', symbol: 'NVDA', amount: 500, price: 142.5, shares: 3.509, pePercentile: null },
-  { date: '2026-03-03', symbol: 'NVDA', amount: 500, price: 138.2, shares: 3.618, pePercentile: null },
-  { date: '2026-03-01', symbol: '000300.SS', amount: 2200, price: 4080, shares: 0.539, pePercentile: 32 },
-  { date: '2026-02-17', symbol: 'NVDA', amount: 500, price: 145.8, shares: 3.429, pePercentile: null },
-  { date: '2026-02-01', symbol: '000300.SS', amount: 1800, price: 4220, shares: 0.427, pePercentile: 35 },
-]
+// === 子组件 ===
 
-function generateMockReturns(): ReturnPoint[] {
-  const points: ReturnPoint[] = []
-  let invested = 0
-  let value = 0
-  for (let i = 23; i >= 0; i--) {
-    const d = new Date()
-    d.setMonth(d.getMonth() - i)
-    invested += 3500
-    value = invested * (1 + (Math.random() - 0.35) * 0.02 + (24 - i) * 0.003)
-    points.push({
-      date: d.toISOString().slice(0, 7),
-      invested: Math.round(invested),
-      value: Math.round(value),
-    })
-  }
-  return points
-}
-
-const MOCK_RETURNS = generateMockReturns()
-
-// === 组件 ===
-
-function PlanCard({ plan }: { plan: DCAPlan }) {
-  const returnPct = ((plan.currentValue - plan.totalInvested) / plan.totalInvested * 100)
-  const isProfit = returnPct >= 0
+function PlanCard({
+  plan,
+  onToggle,
+  onDelete,
+}: {
+  plan: DCAPlan
+  onToggle: (id: number, enabled: number) => void
+  onDelete: (id: number) => void
+}) {
+  const returnPct =
+    plan.current_value != null && plan.total_invested > 0
+      ? ((plan.current_value - plan.total_invested) / plan.total_invested) * 100
+      : null
+  const isProfit = returnPct != null && returnPct >= 0
 
   return (
     <div
@@ -149,47 +79,81 @@ function PlanCard({ plan }: { plan: DCAPlan }) {
         <div>
           <div className="flex items-center gap-2">
             <span className="text-base font-bold text-[#e0e0e0]">{plan.name}</span>
-            <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-              plan.status === 'active'
-                ? 'bg-[#22c55e]/10 text-[#22c55e]'
-                : 'bg-[#f59e0b]/10 text-[#f59e0b]'
-            }`}>
+            <span
+              className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                plan.status === 'active'
+                  ? 'bg-[#22c55e]/10 text-[#22c55e]'
+                  : 'bg-[#f59e0b]/10 text-[#f59e0b]'
+              }`}
+            >
               {plan.status === 'active' ? '运行中' : '已暂停'}
             </span>
           </div>
           <div className="text-[10px] text-[#555] mt-0.5">
-            {STRATEGY_LABELS[plan.strategy]} · {FREQ_LABELS[plan.frequency]} · {plan.amount.toLocaleString()} 元/次
+            {plan.symbol} · {STRATEGY_LABELS[plan.strategy] ?? plan.strategy} ·{' '}
+            {FREQ_LABELS[plan.frequency] ?? plan.frequency} · {plan.amount.toLocaleString()} 元/次
           </div>
         </div>
         <div className="text-right">
-          <div className={`text-lg font-extrabold ${isProfit ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
-            {isProfit ? '+' : ''}{returnPct.toFixed(1)}%
-          </div>
-          <div className="text-[10px] text-[#555]">累计收益率</div>
+          {returnPct != null ? (
+            <>
+              <div className={`text-lg font-extrabold ${isProfit ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                {isProfit ? '+' : ''}
+                {returnPct.toFixed(1)}%
+              </div>
+              <div className="text-[10px] text-[#555]">累计收益率</div>
+            </>
+          ) : (
+            <div className="text-sm text-[#555]">暂无收益</div>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mt-4 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <div
+        className="grid grid-cols-3 gap-3 mt-4 pt-3"
+        style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
+      >
         <div>
           <div className="text-[10px] text-[#555]">已投入</div>
-          <div className="text-sm font-bold text-[#ccc]">{(plan.totalInvested / 10000).toFixed(1)}w</div>
+          <div className="text-sm font-bold text-[#ccc]">
+            {plan.total_invested > 0 ? `${(plan.total_invested / 10000).toFixed(1)}w` : '-'}
+          </div>
         </div>
         <div>
           <div className="text-[10px] text-[#555]">当前市值</div>
-          <div className="text-sm font-bold text-[#ccc]">{(plan.currentValue / 10000).toFixed(1)}w</div>
-        </div>
-        <div>
-          <div className="text-[10px] text-[#555]">下次扣款</div>
           <div className="text-sm font-bold text-[#ccc]">
-            {plan.nextDate === '-' ? '-' : plan.nextDate.slice(5)}
+            {plan.current_value != null ? `${(plan.current_value / 10000).toFixed(1)}w` : '-'}
           </div>
         </div>
+        <div>
+          <div className="text-[10px] text-[#555]">记录数</div>
+          <div className="text-sm font-bold text-[#ccc]">{plan.record_count}</div>
+        </div>
+      </div>
+
+      {/* 操作按钮 */}
+      <div className="mt-3 pt-3 flex gap-2" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggle(plan.id, plan.enabled ? 0 : 1) }}
+          className="flex-1 rounded-lg px-3 py-1.5 text-[11px] font-medium text-[#777] border border-white/[0.06] hover:text-[#ccc] transition-colors cursor-pointer"
+        >
+          {plan.enabled ? '暂停' : '恢复'}
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(plan.id) }}
+          className="rounded-lg px-3 py-1.5 text-[11px] font-medium text-[#ef4444]/60 border border-[#ef4444]/10 hover:text-[#ef4444] transition-colors cursor-pointer"
+        >
+          删除
+        </button>
       </div>
     </div>
   )
 }
 
 function RecordTable({ records }: { records: DCARecord[] }) {
+  if (records.length === 0) {
+    return <div className="text-center text-sm text-[#555] py-8">暂无定投记录</div>
+  }
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -204,20 +168,20 @@ function RecordTable({ records }: { records: DCARecord[] }) {
           </tr>
         </thead>
         <tbody>
-          {records.map((r, i) => (
+          {records.map((r) => (
             <tr
-              key={i}
+              key={r.id}
               className="transition-colors hover:bg-white/[0.02]"
               style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
             >
               <td className="px-3 py-2.5 text-[#999]">{r.date}</td>
               <td className="px-3 py-2.5 text-[#ccc] font-medium">{r.symbol}</td>
               <td className="px-3 py-2.5 text-right text-[#ccc]">{r.amount.toLocaleString()}</td>
-              <td className="px-3 py-2.5 text-right text-[#999]">{r.price.toFixed(1)}</td>
+              <td className="px-3 py-2.5 text-right text-[#999]">{r.price.toFixed(2)}</td>
               <td className="px-3 py-2.5 text-right text-[#999]">{r.shares.toFixed(3)}</td>
               <td className="px-3 py-2.5 text-right">
-                {r.pePercentile !== null ? (
-                  <span className="text-[#eab308]">{r.pePercentile}%</span>
+                {r.pe_percentile != null ? (
+                  <span className="text-[#eab308]">{r.pe_percentile.toFixed(0)}%</span>
                 ) : (
                   <span className="text-[#555]">-</span>
                 )}
@@ -230,7 +194,10 @@ function RecordTable({ records }: { records: DCARecord[] }) {
   )
 }
 
-function ReturnChart({ data }: { data: ReturnPoint[] }) {
+function ReturnChart({ data }: { data: DCAAnalysis['return_curve'] }) {
+  if (!data || data.length === 0) {
+    return <div className="text-center text-sm text-[#555] py-8">暂无收益数据</div>
+  }
   return (
     <div className="h-[240px]">
       <ResponsiveContainer width="100%" height="100%">
@@ -251,7 +218,7 @@ function ReturnChart({ data }: { data: ReturnPoint[] }) {
             tick={{ fontSize: 10, fill: '#555' }}
             tickLine={false}
             axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
-            interval={5}
+            interval={Math.max(1, Math.floor(data.length / 8))}
           />
           <YAxis
             tick={{ fontSize: 10, fill: '#555' }}
@@ -296,6 +263,39 @@ function ReturnChart({ data }: { data: ReturnPoint[] }) {
 }
 
 function CreatePlanModal({ onClose }: { onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const [form, setForm] = useState({
+    name: '',
+    symbol: SYMBOL_OPTIONS[0].value,
+    amount: 1000,
+    frequency: 'monthly' as string,
+    strategy: 'fixed' as string,
+  })
+  const [error, setError] = useState('')
+
+  const mutation = useMutation({
+    mutationFn: createV1DCAPlan,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dca-plans'] })
+      onClose()
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  const handleSubmit = () => {
+    if (!form.name.trim()) {
+      setError('请输入计划名称')
+      return
+    }
+    mutation.mutate({
+      name: form.name.trim(),
+      symbol: form.symbol,
+      amount: form.amount,
+      frequency: form.frequency,
+      strategy: form.strategy,
+    })
+  }
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div
@@ -312,20 +312,42 @@ function CreatePlanModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
+        {error && (
+          <div className="mb-4 rounded-lg px-3 py-2 text-xs text-[#ef4444] bg-[#ef4444]/10">
+            {error}
+          </div>
+        )}
+
         <div className="space-y-4">
+          <Field label="计划名称">
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="如: 沪深300定投"
+              className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2 text-sm text-[#ccc]"
+            />
+          </Field>
+
           <Field label="标的">
-            <select className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2 text-sm text-[#ccc]">
-              <option value="000300.SS">沪深300 ETF</option>
-              <option value="NVDA">英伟达 NVDA</option>
-              <option value="BTC-USD">比特币 BTC</option>
-              <option value="MSFT">微软 MSFT</option>
+            <select
+              value={form.symbol}
+              onChange={(e) => setForm({ ...form, symbol: e.target.value })}
+              className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2 text-sm text-[#ccc]"
+            >
+              {SYMBOL_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </Field>
 
           <Field label="每次金额 (元)">
             <input
               type="number"
-              defaultValue={1000}
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
               className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2 text-sm text-[#ccc]"
             />
           </Field>
@@ -335,7 +357,12 @@ function CreatePlanModal({ onClose }: { onClose: () => void }) {
               {(['weekly', 'biweekly', 'monthly'] as const).map((f) => (
                 <button
                   key={f}
-                  className="flex-1 rounded-lg px-3 py-2 text-xs font-medium text-[#777] border border-white/[0.06] hover:text-[#ccc] hover:bg-white/[0.04] transition-colors cursor-pointer"
+                  onClick={() => setForm({ ...form, frequency: f })}
+                  className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
+                    form.frequency === f
+                      ? 'border border-[#eab308]/30 bg-[#eab308]/10 text-[#eab308]'
+                      : 'text-[#777] border border-white/[0.06] hover:text-[#ccc] hover:bg-white/[0.04]'
+                  }`}
                 >
                   {FREQ_LABELS[f]}
                 </button>
@@ -345,12 +372,19 @@ function CreatePlanModal({ onClose }: { onClose: () => void }) {
 
           <Field label="策略">
             <div className="flex gap-2">
-              <button className="flex-1 rounded-lg px-3 py-2 text-xs font-medium border border-[#eab308]/30 bg-[#eab308]/10 text-[#eab308] cursor-pointer">
-                固定金额
-              </button>
-              <button className="flex-1 rounded-lg px-3 py-2 text-xs font-medium text-[#777] border border-white/[0.06] hover:text-[#ccc] cursor-pointer">
-                PE 加权
-              </button>
+              {(['fixed', 'pe_weighted'] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setForm({ ...form, strategy: s })}
+                  className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
+                    form.strategy === s
+                      ? 'border border-[#eab308]/30 bg-[#eab308]/10 text-[#eab308]'
+                      : 'text-[#777] border border-white/[0.06] hover:text-[#ccc]'
+                  }`}
+                >
+                  {STRATEGY_LABELS[s]}
+                </button>
+              ))}
             </div>
           </Field>
         </div>
@@ -363,10 +397,11 @@ function CreatePlanModal({ onClose }: { onClose: () => void }) {
             取消
           </button>
           <button
-            onClick={onClose}
-            className="flex-1 rounded-lg px-4 py-2.5 text-sm font-bold bg-[#eab308] text-[#0a0a14] hover:bg-[#facc15] transition-colors cursor-pointer"
+            onClick={handleSubmit}
+            disabled={mutation.isPending}
+            className="flex-1 rounded-lg px-4 py-2.5 text-sm font-bold bg-[#eab308] text-[#0a0a14] hover:bg-[#facc15] transition-colors cursor-pointer disabled:opacity-50"
           >
-            创建计划
+            {mutation.isPending ? '创建中...' : '创建计划'}
           </button>
         </div>
       </div>
@@ -383,14 +418,93 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
+function StatMini({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div
+      className="rounded-xl px-4 py-3"
+      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+    >
+      <div className="text-[10px] text-[#555] uppercase tracking-widest font-medium">{label}</div>
+      <div className="mt-1 text-xl font-extrabold tracking-tight" style={{ color: color ?? '#e0e0e0' }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+/** Loading skeleton */
+function PlansSkeleton() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {[1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="rounded-2xl p-5 animate-pulse"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <div className="h-5 w-32 bg-white/[0.06] rounded mb-3" />
+          <div className="h-3 w-48 bg-white/[0.04] rounded mb-4" />
+          <div className="grid grid-cols-3 gap-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="h-8 bg-white/[0.04] rounded" />
+            <div className="h-8 bg-white/[0.04] rounded" />
+            <div className="h-8 bg-white/[0.04] rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // === 主页面 ===
 
 export default function DCAPage() {
   const [showCreate, setShowCreate] = useState(false)
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null)
+  const queryClient = useQueryClient()
 
-  const totalInvested = MOCK_PLANS.reduce((s, p) => s + p.totalInvested, 0)
-  const totalValue = MOCK_PLANS.reduce((s, p) => s + p.currentValue, 0)
-  const totalReturn = ((totalValue - totalInvested) / totalInvested * 100)
+  // 查询
+  const { data: plansResult, isLoading: plansLoading } = useQuery({
+    queryKey: ['dca-plans'],
+    queryFn: fetchV1DCAPlans,
+    staleTime: 30 * 1000,
+  })
+
+  const { data: historyResult } = useQuery({
+    queryKey: ['dca-history', selectedPlanId],
+    queryFn: () => fetchV1DCAHistory(selectedPlanId ?? undefined),
+    staleTime: 30 * 1000,
+  })
+
+  const { data: analysisResult } = useQuery({
+    queryKey: ['dca-analysis', selectedPlanId],
+    queryFn: () => fetchV1DCAAnalysis(selectedPlanId!),
+    enabled: selectedPlanId != null,
+    staleTime: 30 * 1000,
+  })
+
+  // Mutations
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: number }) =>
+      updateV1DCAPlan(id, { enabled }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dca-plans'] }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteV1DCAPlan(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dca-plans'] })
+      queryClient.invalidateQueries({ queryKey: ['dca-history'] })
+    },
+  })
+
+  const plans: DCAPlan[] = plansResult?.data ?? []
+  const records: DCARecord[] = historyResult?.data ?? []
+  const analysis: DCAAnalysis | null = analysisResult?.data ?? null
+
+  const totalInvested = plans.reduce((s, p) => s + p.total_invested, 0)
+  const totalValue = plans.reduce((s, p) => s + (p.current_value ?? 0), 0)
+  const hasValue = plans.some((p) => p.current_value != null)
+  const totalReturn = hasValue && totalInvested > 0 ? ((totalValue - totalInvested) / totalInvested) * 100 : null
 
   return (
     <div className="mx-auto max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
@@ -398,9 +512,7 @@ export default function DCAPage() {
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-[#e0e0e0]">💰 定投管理</h1>
-          <p className="mt-1 text-sm text-[#555]">
-            定投计划 + 历史记录 + 收益曲线
-          </p>
+          <p className="mt-1 text-sm text-[#555]">定投计划 + 历史记录 + 收益曲线</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
@@ -412,62 +524,98 @@ export default function DCAPage() {
 
       {/* 汇总统计 */}
       <div className="mb-6 grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <StatMini label="运行计划" value={`${MOCK_PLANS.filter(p => p.status === 'active').length}`} />
-        <StatMini label="累计投入" value={`${(totalInvested / 10000).toFixed(1)}w`} />
-        <StatMini label="当前市值" value={`${(totalValue / 10000).toFixed(1)}w`} />
+        <StatMini label="运行计划" value={`${plans.filter((p) => p.status === 'active').length}`} />
+        <StatMini label="累计投入" value={totalInvested > 0 ? `${(totalInvested / 10000).toFixed(1)}w` : '-'} />
+        <StatMini label="当前市值" value={hasValue ? `${(totalValue / 10000).toFixed(1)}w` : '-'} />
         <StatMini
           label="总收益率"
-          value={`${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(1)}%`}
-          color={totalReturn >= 0 ? '#22c55e' : '#ef4444'}
+          value={totalReturn != null ? `${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(1)}%` : '-'}
+          color={totalReturn != null ? (totalReturn >= 0 ? '#22c55e' : '#ef4444') : undefined}
         />
       </div>
 
       {/* 计划卡片 */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {MOCK_PLANS.map((plan) => (
-          <PlanCard key={plan.id} plan={plan} />
-        ))}
-      </div>
+      {plansLoading ? (
+        <PlansSkeleton />
+      ) : plans.length === 0 ? (
+        <div className="text-center text-sm text-[#555] py-12">
+          暂无定投计划 — 点击右上角创建第一个计划
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {plans.map((plan) => (
+            <div
+              key={plan.id}
+              onClick={() => setSelectedPlanId(plan.id)}
+              className={`cursor-pointer rounded-2xl transition-all ${
+                selectedPlanId === plan.id ? 'ring-1 ring-[#eab308]/40' : ''
+              }`}
+            >
+              <PlanCard
+                plan={plan}
+                onToggle={(id, enabled) => toggleMutation.mutate({ id, enabled })}
+                onDelete={(id) => {
+                  if (confirm('确定删除此定投计划？所有记录也将被删除。')) {
+                    deleteMutation.mutate(id)
+                  }
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* 累计收益曲线 */}
-      <div className="mt-8 rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="mb-4">
-          <h3 className="text-sm font-bold text-[#e0e0e0]">累计收益曲线</h3>
-          <p className="text-[10px] text-[#555] mt-0.5">
-            <span className="inline-block w-3 h-[2px] bg-[#6b7280] mr-1 align-middle" /> 投入
-            <span className="inline-block w-3 h-[2px] bg-[#22c55e] ml-3 mr-1 align-middle" /> 市值
-          </p>
+      {analysis && analysis.return_curve.length > 0 && (
+        <div
+          className="mt-8 rounded-2xl p-5"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <div className="mb-4">
+            <h3 className="text-sm font-bold text-[#e0e0e0]">
+              {analysis.name} 累计收益曲线
+            </h3>
+            <p className="text-[10px] text-[#555] mt-0.5">
+              <span className="inline-block w-3 h-[2px] bg-[#6b7280] mr-1 align-middle" /> 投入
+              <span className="inline-block w-3 h-[2px] bg-[#22c55e] ml-3 mr-1 align-middle" /> 市值
+              {analysis.lump_sum_return_pct != null && (
+                <span className="ml-3">
+                  · 一次性买入收益率: {analysis.lump_sum_return_pct >= 0 ? '+' : ''}
+                  {analysis.lump_sum_return_pct.toFixed(1)}%
+                </span>
+              )}
+            </p>
+          </div>
+          <ReturnChart data={analysis.return_curve} />
         </div>
-        <ReturnChart data={MOCK_RETURNS} />
-      </div>
+      )}
 
       {/* 定投历史 */}
-      <div className="mt-8 rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="mb-4">
-          <h3 className="text-sm font-bold text-[#e0e0e0]">近期定投记录</h3>
-          <p className="text-[10px] text-[#555] mt-0.5">最近 6 条扣款记录</p>
+      <div
+        className="mt-8 rounded-2xl p-5"
+        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-[#e0e0e0]">定投记录</h3>
+            <p className="text-[10px] text-[#555] mt-0.5">
+              {selectedPlanId ? `计划 #${selectedPlanId} 的记录` : '全部记录'}
+            </p>
+          </div>
+          {selectedPlanId && (
+            <button
+              onClick={() => setSelectedPlanId(null)}
+              className="text-[11px] text-[#777] hover:text-[#ccc] cursor-pointer"
+            >
+              查看全部
+            </button>
+          )}
         </div>
-        <RecordTable records={MOCK_RECORDS} />
-      </div>
-
-      {/* Mock 提示 */}
-      <div className="mt-6 rounded-xl px-4 py-3 text-center text-[11px] text-[#555]" style={{ border: '1px dashed rgba(255,255,255,0.06)' }}>
-        📌 当前显示 Mock 数据 — 等后端 <code className="text-[#eab308]/60">/api/v1/dca/plans</code> 和 <code className="text-[#eab308]/60">/api/v1/dca/history</code> 就绪后自动对接
+        <RecordTable records={records} />
       </div>
 
       {/* 创建计划 Modal */}
       {showCreate && <CreatePlanModal onClose={() => setShowCreate(false)} />}
-    </div>
-  )
-}
-
-function StatMini({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div className="rounded-xl px-4 py-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <div className="text-[10px] text-[#555] uppercase tracking-widest font-medium">{label}</div>
-      <div className="mt-1 text-xl font-extrabold tracking-tight" style={{ color: color ?? '#e0e0e0' }}>
-        {value}
-      </div>
     </div>
   )
 }

@@ -83,7 +83,12 @@ async function fetchJSON<T>(path: string, base = API_BASE): Promise<T> {
     handle401(res)
     throw new Error(`API ${path}: ${res.status} ${res.statusText}`)
   }
-  return res.json()
+  const json = await res.json()
+  // 自动解包统一响应格式 {ok, data, meta}
+  if (json && typeof json === 'object' && 'ok' in json && 'data' in json) {
+    return json.data as T
+  }
+  return json as T
 }
 
 /**
@@ -98,7 +103,11 @@ async function fetchJSONOrNull<T>(path: string, base = API_BASE): Promise<T | nu
       handle401(res)
       return null
     }
-    return res.json()
+    const json = await res.json()
+    if (json && typeof json === 'object' && 'ok' in json && 'data' in json) {
+      return json.data as T
+    }
+    return json as T
   } catch {
     return null
   }

@@ -60,10 +60,10 @@ const MARKET_TITLES: Record<MarketTab, { title: string; deck: string }> = {
 }
 
 const PHASE_ORDER = [
-  { key: 'recovery', label: '复苏', note: '增长回升，优先股票', color: '#1f7a69' },
-  { key: 'overheat', label: '过热', note: '通胀抬头，商品占优', color: '#b45a3c' },
-  { key: 'stagflation', label: '滞胀', note: '增长承压，降低风险', color: '#d4a24c' },
-  { key: 'recession', label: '衰退', note: '防御阶段，债券受益', color: '#64748b' },
+  { key: 'recovery', label: '复苏', asset: '股票', note: '增长回升，优先股票', color: '#1f7a69' },
+  { key: 'overheat', label: '过热', asset: '商品', note: '通胀抬头，商品占优', color: '#b45a3c' },
+  { key: 'stagflation', label: '滞胀', asset: '现金/防御', note: '增长承压，降低风险', color: '#d4a24c' },
+  { key: 'recession', label: '衰退', asset: '债券', note: '防御阶段，债券受益', color: '#64748b' },
 ] as const
 
 const ALLOCATION_COLORS = ['#b45a3c', '#1f7a69', '#d4a24c', '#6b7280', '#d9795f', '#6ea699']
@@ -124,10 +124,13 @@ export default function Dashboard() {
 
   const phaseChartData = PHASE_ORDER.map((phase) => ({
     name: phase.label,
+    asset: phase.asset,
     value: 25,
     fill: data.merill_clock.phase === phase.key ? phase.color : 'rgba(23,24,28,0.10)',
     note: phase.note,
   }))
+
+  const currentPhaseMeta = PHASE_ORDER.find((phase) => phase.key === data.merill_clock.phase) || PHASE_ORDER[0]
 
   const confidenceData = [
     { name: '置信度', value: Math.round(data.merill_clock.confidence * 100) },
@@ -198,31 +201,35 @@ export default function Dashboard() {
 
       <main className="mx-auto max-w-[1320px] px-4 pb-16 pt-6 sm:px-6 lg:px-8">
         <section>
-          <SectionHeader title="顶部核心图表" subtitle="把最关键的三块图表直接放到顶部，说明信息收进 tooltip，不再占下方空间。" />
+          <SectionHeader title="顶部核心图表" subtitle="把最关键的三块图表直接放到顶部；美林时钟恢复成更接近原始表达，阶段逻辑挪到下方总览。" />
           <div className="mt-5 grid gap-5 xl:grid-cols-3">
             <div className="paper-card compact-card">
               <SectionEyebrow title="美林时钟" note={data.merill_clock.phase_label} />
-              <div className="mt-4 chart-wrap h-[290px]">
+              <div className="mt-4 chart-wrap h-[320px]">
                 <div className="relative h-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={phaseChartData} dataKey="value" innerRadius={78} outerRadius={112} stroke="rgba(255,255,255,0.85)" strokeWidth={2}>
+                      <Pie data={phaseChartData} dataKey="value" innerRadius={78} outerRadius={112} stroke="rgba(255,255,255,0.88)" strokeWidth={2}>
                         {phaseChartData.map((entry) => (
                           <Cell key={entry.name} fill={entry.fill} />
                         ))}
                       </Pie>
-                      <Pie data={[{ name: '空白', value: 100 - confidenceData[0].value }, { name: '置信度', value: confidenceData[0].value }]} dataKey="value" innerRadius={54} outerRadius={66} startAngle={90} endAngle={-270} stroke="none">
-                        <Cell fill="rgba(17,24,39,0.08)" />
-                        <Cell fill={getPhaseColor(data.merill_clock.phase)} />
-                      </Pie>
-                      <Tooltip content={<PhaseTooltip currentPhase={data.merill_clock.phase_label} confidence={confidenceData[0].value} bestAsset={data.merill_clock.best_asset} description={data.merill_clock.description} warning={data.merill_clock.transition_warning} />} />
                     </PieChart>
                   </ResponsiveContainer>
+
+                  <ClockLabel position="top" title="过热" asset="商品" active={currentPhaseMeta.key === 'overheat'} />
+                  <ClockLabel position="right" title="滞胀" asset="现金/防御" active={currentPhaseMeta.key === 'stagflation'} />
+                  <ClockLabel position="bottom" title="衰退" asset="债券" active={currentPhaseMeta.key === 'recession'} />
+                  <ClockLabel position="left" title="复苏" asset="股票" active={currentPhaseMeta.key === 'recovery'} />
+
                   <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <div className="text-xs tracking-[0.22em] text-[var(--muted)]">当前阶段</div>
-                    <div className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[var(--ink)]">{data.merill_clock.phase_label}</div>
-                    <div className="mt-2 text-sm text-[var(--muted-strong)]">置信度 {confidenceData[0].value}%</div>
+                    <div className="text-[11px] tracking-[0.22em] text-[var(--muted)]">当前阶段</div>
+                    <div className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[var(--ink)]">{data.merill_clock.phase_label}</div>
+                    <div className="mt-1 text-xs text-[var(--muted-strong)]">代表资产：{currentPhaseMeta.asset}</div>
+                    <div className="mt-1 text-xs text-[var(--muted-strong)]">置信度 {confidenceData[0].value}%</div>
                   </div>
+
+                  <ClockArrow phase={data.merill_clock.phase} color={getPhaseColor(data.merill_clock.phase)} />
                 </div>
               </div>
             </div>
@@ -272,6 +279,26 @@ export default function Dashboard() {
               <span>{updated}</span>
             </div>
             <p className="mt-4 text-[15px] leading-7 text-[var(--muted-strong)]">{summaryText}</p>
+
+            <div className="mt-5 grid gap-4 xl:grid-cols-3">
+              <div className="rounded-[22px] border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.42)] px-4 py-4">
+                <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">美林时钟</div>
+                <div className="mt-2 text-lg font-semibold text-[var(--ink)]">{data.merill_clock.phase_label} · 置信度 {confidenceData[0].value}%</div>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted-strong)]">代表资产 {currentPhaseMeta.asset}，当前模型判断为：{data.merill_clock.description}{data.merill_clock.transition_warning ? `；预警：${data.merill_clock.transition_warning}` : ''}</p>
+              </div>
+
+              <div className="rounded-[22px] border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.42)] px-4 py-4">
+                <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">资产配置</div>
+                <div className="mt-2 text-lg font-semibold text-[var(--ink)]">当前建议超配 {data.merill_clock.best_asset}</div>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted-strong)]">{allocationChartData.map((item) => `${item.name}${item.value}%`).join(' · ')}</p>
+              </div>
+
+              <div className="rounded-[22px] border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.42)] px-4 py-4">
+                <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">市场热度</div>
+                <div className="mt-2 text-lg font-semibold text-[var(--ink)]">综合热度 {averageTemp.toFixed(0)}°</div>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted-strong)]">A股 {marketTempByTab(filteredTemps, 'cn')}° · 美股 {marketTempByTab(filteredTemps, 'us')}° · 港股 {marketTempByTab(filteredTemps, 'hk')}° · 加密 {marketTempByTab(filteredTemps, 'crypto')}°</p>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -583,6 +610,39 @@ function PositionMetric({ label, value }: { label: string; value: string }) {
   )
 }
 
+function ClockLabel({ position, title, asset, active }: { position: 'top' | 'right' | 'bottom' | 'left'; title: string; asset: string; active: boolean }) {
+  const posClass =
+    position === 'top'
+      ? 'left-1/2 top-2 -translate-x-1/2'
+      : position === 'right'
+        ? 'right-1 top-1/2 -translate-y-1/2 text-right'
+        : position === 'bottom'
+          ? 'left-1/2 bottom-2 -translate-x-1/2'
+          : 'left-1 top-1/2 -translate-y-1/2'
+
+  return (
+    <div className={`pointer-events-none absolute ${posClass}`}>
+      <div className={`rounded-xl px-2 py-1.5 text-center ${active ? 'bg-[rgba(255,255,255,0.78)] shadow-[0_10px_24px_rgba(17,24,39,0.10)]' : 'bg-[rgba(255,255,255,0.48)]'}`}>
+        <div className="text-xs font-semibold text-[var(--ink)]">{title}</div>
+        <div className="mt-0.5 text-[10px] text-[var(--muted-strong)]">{asset}</div>
+      </div>
+    </div>
+  )
+}
+
+function ClockArrow({ phase, color }: { phase: string; color: string }) {
+  const rotation = phase === 'recovery' ? -90 : phase === 'overheat' ? 0 : phase === 'stagflation' ? 90 : 180
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <div className="relative h-[150px] w-[150px]" style={{ transform: `rotate(${rotation}deg)` }}>
+        <div className="absolute left-1/2 top-1/2 h-[3px] w-[62px] -translate-y-1/2 rounded-full" style={{ background: color, transformOrigin: '0% 50%' }} />
+        <div className="absolute left-[104px] top-1/2 -translate-y-1/2" style={{ width: 0, height: 0, borderTop: '7px solid transparent', borderBottom: '7px solid transparent', borderLeft: `12px solid ${color}` }} />
+        <div className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-sm" style={{ background: color }} />
+      </div>
+    </div>
+  )
+}
+
 function Tag({ children }: { children: ReactNode }) {
   return <span className="rounded-full border border-[rgba(17,24,39,0.08)] bg-[rgba(255,255,255,0.5)] px-3 py-1 text-xs text-[var(--muted-strong)]">{children}</span>
 }
@@ -605,21 +665,6 @@ function TextTooltip({ active, payload, label, title, valueKey, unit = '', dataK
       <div className="font-semibold">{label || datum.name}</div>
       {value !== undefined ? <div className="mt-1">当前值：{value}{unit}</div> : null}
       {datum[dataKey] ? <div className="mt-1 text-[var(--muted-strong)]">{datum[dataKey]}</div> : null}
-    </BaseTooltip>
-  )
-}
-
-function PhaseTooltip({ active, payload, currentPhase, confidence, bestAsset, description, warning }: any) {
-  if (!active || !payload?.length) return null
-  const datum = payload[0]?.payload || {}
-  return (
-    <BaseTooltip title="美林时钟说明">
-      <div className="font-semibold">{datum.name}</div>
-      <div className="mt-1">当前阶段：{currentPhase} · 置信度 {confidence}%</div>
-      <div className="mt-1">推荐超配：{bestAsset}</div>
-      {datum.note ? <div className="mt-1 text-[var(--muted-strong)]">象限含义：{datum.note}</div> : null}
-      <div className="mt-1 text-[var(--muted-strong)]">{description}</div>
-      {warning ? <div className="mt-1 text-[var(--accent)]">{warning}</div> : null}
     </BaseTooltip>
   )
 }
@@ -729,6 +774,13 @@ function getPhaseTone(phase: BullBearData['phase']) {
     default:
       return { color: '#334155', bg: 'rgba(148,163,184,0.2)' }
   }
+}
+
+function marketTempByTab(items: TemperatureData[], tab: MarketTab) {
+  const subset = items.filter((item) => getMarket(item.symbol) === tab)
+  if (!subset.length) return '-'
+  const avg = subset.reduce((sum, item) => sum + item.temperature, 0) / subset.length
+  return avg.toFixed(0)
 }
 
 function buildSummary({ phaseLabel, bestAsset, averageTemp, hottestAsset, strongestSignal, strongestSignalLevel, bearCount, bullCount, totalCount, transitionWarning, description }: any) {

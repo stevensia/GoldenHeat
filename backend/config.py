@@ -49,7 +49,10 @@ MONTHLY_SIGNAL = {
 
 # API 配置
 ADMIN_API_TOKEN = os.getenv("ADMIN_API_TOKEN", "goldenheat-admin-secret")
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+CORS_ORIGINS = os.getenv(
+    "CORS_ORIGINS",
+    "https://lishengms.com,http://localhost:5173,http://localhost:3000",
+).split(",")
 DEPLOY_BASE_PATH = os.getenv("DEPLOY_BASE_PATH", "/heat")
 
 # Rate Limiting（每分钟请求数）

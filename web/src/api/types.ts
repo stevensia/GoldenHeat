@@ -166,12 +166,18 @@ export interface IndexValuation {
   pe_ttm: number
   pe_pct_5y: number | null
   pe_pct_10y: number | null
+  pb: number | null
+  pb_pct_5y: number | null
+  pb_pct_10y: number | null
   zone: string
   zone_color: string
   latest_date: string
   pe_5y_avg: number | null
   pe_5y_min: number | null
   pe_5y_max: number | null
+  pb_5y_avg: number | null
+  pb_5y_min: number | null
+  pb_5y_max: number | null
 }
 
 export interface PEHistoryPoint {
@@ -179,6 +185,7 @@ export interface PEHistoryPoint {
   pe_ttm: number | null
   pe_static: number | null
   pe_median: number | null
+  pb: number | null
   index_value: number | null
   percentile?: number | null
 }

@@ -75,39 +75,71 @@ function ValuationCard({ data }: { data: IndexValuation }) {
         </div>
       </div>
 
-      {/* Current PE */}
-      <div className="mb-4">
-        <div className="text-3xl font-extrabold tracking-tight" style={{ color: color10y }}>
-          {data.pe_ttm.toFixed(1)}
+      {/* Current PE + PB */}
+      <div className="mb-4 flex items-end gap-4">
+        <div>
+          <div className="text-3xl font-extrabold tracking-tight" style={{ color: color10y }}>
+            {data.pe_ttm.toFixed(1)}
+          </div>
+          <div className="text-[10px] text-[#555] mt-0.5">PE (TTM)</div>
         </div>
-        <div className="text-[10px] text-[#555] mt-0.5">当前 PE (TTM)</div>
+        {data.pb != null && (
+          <div>
+            <div className="text-xl font-bold text-[#ccc]">
+              {data.pb.toFixed(2)}
+            </div>
+            <div className="text-[10px] text-[#555] mt-0.5">PB</div>
+          </div>
+        )}
       </div>
 
       {/* Percentile bars */}
       <div className="space-y-3">
         {data.pe_pct_5y != null && (
-          <PercentileRow label="5年百分位" value={data.pe_pct_5y} />
+          <PercentileRow label="PE 5年" value={data.pe_pct_5y} />
         )}
         {data.pe_pct_10y != null && (
-          <PercentileRow label="10年百分位" value={data.pe_pct_10y} />
+          <PercentileRow label="PE 10年" value={data.pe_pct_10y} />
+        )}
+        {data.pb_pct_5y != null && (
+          <PercentileRow label="PB 5年" value={data.pb_pct_5y} />
+        )}
+        {data.pb_pct_10y != null && (
+          <PercentileRow label="PB 10年" value={data.pb_pct_10y} />
         )}
       </div>
 
       {/* Range info */}
       <div className="mt-4 pt-3 grid grid-cols-3 gap-2 text-center" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <div>
-          <div className="text-[10px] text-[#555]">5y 均值</div>
+          <div className="text-[10px] text-[#555]">PE 均值</div>
           <div className="text-sm font-bold text-[#ccc]">{data.pe_5y_avg?.toFixed(1) ?? '-'}</div>
         </div>
         <div>
-          <div className="text-[10px] text-[#555]">5y 最低</div>
+          <div className="text-[10px] text-[#555]">PE 最低</div>
           <div className="text-sm font-bold text-[#4ade80]">{data.pe_5y_min?.toFixed(1) ?? '-'}</div>
         </div>
         <div>
-          <div className="text-[10px] text-[#555]">5y 最高</div>
+          <div className="text-[10px] text-[#555]">PE 最高</div>
           <div className="text-sm font-bold text-[#ef4444]">{data.pe_5y_max?.toFixed(1) ?? '-'}</div>
         </div>
       </div>
+      {data.pb_5y_avg != null && (
+        <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+          <div>
+            <div className="text-[10px] text-[#555]">PB 均值</div>
+            <div className="text-sm font-bold text-[#ccc]">{data.pb_5y_avg?.toFixed(2) ?? '-'}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-[#555]">PB 最低</div>
+            <div className="text-sm font-bold text-[#4ade80]">{data.pb_5y_min?.toFixed(2) ?? '-'}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-[#555]">PB 最高</div>
+            <div className="text-sm font-bold text-[#ef4444]">{data.pb_5y_max?.toFixed(2) ?? '-'}</div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

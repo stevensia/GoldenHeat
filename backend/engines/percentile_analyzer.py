@@ -84,6 +84,29 @@ class PercentileAnalyzer:
             (symbol, latest_date),
         )
 
+        # PB 数据
+        pb_row = fetchone(
+            "SELECT pb FROM index_pe "
+            "WHERE symbol = ? AND pb IS NOT NULL "
+            "ORDER BY date DESC LIMIT 1",
+            (symbol,),
+        )
+        current_pb = round(pb_row["pb"], 2) if pb_row and pb_row["pb"] else None
+
+        pb_pct_5y = None
+        pb_pct_10y = None
+        if current_pb is not None:
+            pb_pct_5y = self._rank_percentile_pb(symbol, current_pb, 5)
+            pb_pct_10y = self._rank_percentile_pb(symbol, current_pb, 10)
+
+        pb_stats = fetchone(
+            "SELECT AVG(pb) as avg_pb, MIN(pb) as min_pb, MAX(pb) as max_pb "
+            "FROM index_pe "
+            "WHERE symbol = ? AND pb IS NOT NULL "
+            "AND date >= date(?, '-5 years')",
+            (symbol, latest_date),
+        )
+
         # 用 10 年百分位判断估值区间
         zone_pct = pct_10y if pct_10y is not None else (pct_5y or 50)
         zone_label, zone_color = _get_zone(zone_pct)
@@ -94,12 +117,18 @@ class PercentileAnalyzer:
             "pe_ttm": round(current_pe, 2),
             "pe_pct_5y": round(pct_5y, 1) if pct_5y is not None else None,
             "pe_pct_10y": round(pct_10y, 1) if pct_10y is not None else None,
+            "pb": current_pb,
+            "pb_pct_5y": round(pb_pct_5y, 1) if pb_pct_5y is not None else None,
+            "pb_pct_10y": round(pb_pct_10y, 1) if pb_pct_10y is not None else None,
             "zone": zone_label,
             "zone_color": zone_color,
             "latest_date": latest_date,
             "pe_5y_avg": round(stats["avg_pe"], 2) if stats and stats["avg_pe"] else None,
             "pe_5y_min": round(stats["min_pe"], 2) if stats and stats["min_pe"] else None,
             "pe_5y_max": round(stats["max_pe"], 2) if stats and stats["max_pe"] else None,
+            "pb_5y_avg": round(pb_stats["avg_pb"], 2) if pb_stats and pb_stats["avg_pb"] else None,
+            "pb_5y_min": round(pb_stats["min_pb"], 2) if pb_stats and pb_stats["min_pb"] else None,
+            "pb_5y_max": round(pb_stats["max_pb"], 2) if pb_stats and pb_stats["max_pb"] else None,
         }
 
     def _rank_percentile(
@@ -154,7 +183,7 @@ class PercentileAnalyzer:
             [{date, pe_ttm, pe_static, pe_median, index_value, percentile}, ...]
         """
         rows = fetchall(
-            "SELECT date, pe_ttm, pe_static, pe_median, index_value "
+            "SELECT date, pe_ttm, pe_static, pe_median, pb, index_value "
             "FROM index_pe "
             "WHERE symbol = ? AND pe_ttm IS NOT NULL "
             "ORDER BY date DESC "
@@ -169,6 +198,7 @@ class PercentileAnalyzer:
                 "pe_static": round(r["pe_static"], 2) if r["pe_static"] else None,
                 "pe_median": round(r["pe_median"], 2) if r["pe_median"] else None,
                 "index_value": round(r["index_value"], 2) if r["index_value"] else None,
+                "pb": round(r["pb"], 2) if r["pb"] else None,
             }
             for r in rows
         ]
@@ -189,3 +219,19 @@ class PercentileAnalyzer:
             d["percentile"] = round(rank / len(window) * 100, 1)
 
         return data
+
+    def _rank_percentile_pb(
+        self, symbol: str, current_pb: float, years: int
+    ) -> Optional[float]:
+        """计算 PB rank 百分位"""
+        row = fetchone(
+            "SELECT COUNT(*) as total, "
+            "SUM(CASE WHEN pb < ? THEN 1 ELSE 0 END) as below "
+            "FROM index_pe "
+            "WHERE symbol = ? AND pb IS NOT NULL "
+            "AND date >= date('now', ? || ' years')",
+            (current_pb, symbol, f"-{years}"),
+        )
+        if not row or row["total"] == 0:
+            return None
+        return (row["below"] / row["total"]) * 100
